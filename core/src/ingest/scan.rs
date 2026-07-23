@@ -15,34 +15,25 @@ pub struct ConversationDir {
     pub message_files: Vec<PathBuf>,
 }
 
-/// Locates the `messages/inbox` directory somewhere under `root`. Facebook's
-/// export format doesn't guarantee a fixed depth for it (e.g. it may be
-/// nested under a dated export folder), so this searches for it rather than
-/// assuming a fixed relative path.
-pub fn find_messages_root(root: impl AsRef<Path>) -> io::Result<PathBuf> {
-    let root = root.as_ref();
-    validate_root(root)?;
-
-    WalkDir::new(root)
-        .into_iter()
-        .filter_map(Result::ok)
-        .find(|entry| {
-            entry.file_type().is_dir()
-                && entry.file_name() == OsStr::new(INBOX_DIR_NAME)
-                && entry.path().parent().and_then(Path::file_name) == Some(OsStr::new(MESSAGES_DIR_NAME))
-        })
-        .map(|entry| entry.into_path())
-        .ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::NotFound,
-                format!(
-                    "could not find a {MESSAGES_DIR_NAME}/{INBOX_DIR_NAME} directory under {}",
-                    root.display()
-                ),
-            )
-        })
+/// Cheaply counts the conversation folders directly under `messages/inbox`,
+/// trusting that every direct subdirectory there is a conversation rather
+/// than opening each one to look for message files. Fast enough to run as
+/// a first pass before the more expensive [`scan`] function.
+pub fn count(root: impl AsRef<Path>) -> io::Result<usize> {
+    let inbox = find_messages_root(root)?;
+    let total = std::fs::read_dir(inbox)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().is_dir())
+        .count();
+    Ok(total)
 }
 
+/// Lazily walks the conversation folders directly under `messages/inbox`,
+/// yielding one [`ConversationDir`] per conversation with its
+/// `message_N.json` files collected and sorted numerically. Errors
+/// encountered mid-walk are yielded as `Err` items rather than dropped, so
+/// callers can distinguish a partial failure from a conversation that
+/// legitimately has no message files (which is simply skipped).
 pub fn scan(
     root: impl AsRef<Path>,
 ) -> io::Result<impl Iterator<Item = io::Result<ConversationDir>>> {
@@ -76,21 +67,33 @@ pub fn scan(
         }))
 }
 
-/// Cheaply counts the conversation folders directly under `messages/inbox`,
-/// trusting that every direct subdirectory there is a conversation rather
-/// than opening each one to look for message files. Fast enough to run as
-/// a first pass before the more expensive [`scan`] pipeline.
-pub fn count(root: impl AsRef<Path>) -> io::Result<usize> {
-    let inbox = find_messages_root(root)?;
+/// Locates the `messages/inbox` directory somewhere under `root`. Facebook's
+/// export format doesn't guarantee a fixed depth for it (e.g. it may be
+/// nested under a dated export folder), so this searches for it rather than
+/// assuming a fixed relative path.
+pub fn find_messages_root(root: impl AsRef<Path>) -> io::Result<PathBuf> {
+    let root = root.as_ref();
+    validate_root(root)?;
 
-    let mut total = 0;
-    for entry in fs::read_dir(inbox)? {
-        if entry?.file_type()?.is_dir() {
-            total += 1;
-        }
-    }
-
-    Ok(total)
+    WalkDir::new(root)
+        .into_iter()
+        .filter_map(Result::ok)
+        .find(|entry| {
+            entry.file_type().is_dir()
+                && entry.file_name() == OsStr::new(INBOX_DIR_NAME)
+                && entry.path().parent().and_then(Path::file_name)
+                    == Some(OsStr::new(MESSAGES_DIR_NAME))
+        })
+        .map(|entry| entry.into_path())
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "could not find a {MESSAGES_DIR_NAME}/{INBOX_DIR_NAME} directory under {}",
+                    root.display()
+                ),
+            )
+        })
 }
 
 fn validate_root(root: &Path) -> io::Result<()> {
@@ -345,7 +348,10 @@ mod tests {
     fn scan_skips_conversation_folders_with_no_message_files() {
         let export = tempdir().unwrap();
         let inbox = export.path().join("messages").join("inbox");
-        write_file(&inbox.join("conv_with_messages").join("message_1.json"), "{}");
+        write_file(
+            &inbox.join("conv_with_messages").join("message_1.json"),
+            "{}",
+        );
         make_dir(&inbox.join("conv_without_messages"));
 
         let folders: Vec<PathBuf> = scan(export.path())
