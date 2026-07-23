@@ -1,0 +1,123 @@
+{
+  "participants": [
+    {
+      "name": "Elena Petrova"
+    },
+    {
+      "name": "Marcus Webb"
+    },
+    {
+      "name": "Aisha Rahman"
+    },
+    {
+      "name": "Tom\u00c3\u00a1s Rivera"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Marcus Webb",
+      "timestamp_ms": 1955318264773,
+      "content": "trailhead at 7am, don\u00e2\u0080\u0099t be late \u00e2\u008f\u00b0",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Tom\u00c3\u00a1s Rivera",
+      "timestamp_ms": 1955317998411,
+      "content": "bringing extra water for everyone \u00f0\u009f\u0092\u00a7",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Aisha Rahman",
+      "timestamp_ms": 1955316773205,
+      "content": "the view from the summit was unreal \u00e2\u0080\u0094 10/10 would recommend \u00f0\u009f\u008f\u0094\u00ef\u00b8\u008f",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Elena Petrova",
+      "timestamp_ms": 1955315982110,
+      "content": "naive of me to think we\u00e2\u0080\u0099d beat the crowd this time \u00f0\u009f\u0098\u0085",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Marcus Webb",
+      "timestamp_ms": 1955314611004,
+      "content": "weather looks perfect \u00e2\u0080\u0094 clear skies all weekend \u00e2\u0098\u0080\u00ef\u00b8\u008f",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Tom\u00c3\u00a1s Rivera",
+      "timestamp_ms": 1955313998552,
+      "content": "count me in, been wanting to hit this trail all summer",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Aisha Rahman",
+      "timestamp_ms": 1955312771003,
+      "content": "who\u00e2\u0080\u0099s down for the ridge trail this saturday? \u00f0\u009f\u00a5\u00be",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Elena Petrova",
+      "timestamp_ms": 1955280112005,
+      "content": "same, my legs are still sore \u00f0\u009f\u0098\u0085",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Marcus Webb",
+      "timestamp_ms": 1955279881002,
+      "content": "that last climb nearly killed me \u00f0\u009f\u0092\u0080",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Tom\u00c3\u00a1s Rivera",
+      "timestamp_ms": 1955260112456,
+      "content": "great turnout today everyone!",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Aisha Rahman",
+      "timestamp_ms": 1955180411002,
+      "content": "can\u00e2\u0080\u0099t wait \u00e2\u0080\u0094 it\u00e2\u0080\u0099s been way too long since the last one",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Elena Petrova",
+      "timestamp_ms": 1955100112005,
+      "content": "new trail idea for next month: crescent falls \u00f0\u009f\u008f\u0095\u00ef\u00b8\u008f",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Marcus Webb",
+      "timestamp_ms": 1955000881002,
+      "content": "welcome to the group \u00f0\u009f\u0091\u008b",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1954900112456,
+      "content": "hey all, excited to join!",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "NA Hiking Club",
+  "is_still_participant": true,
+  "thread_path": "inbox/nahikingclub_1955318264773051",
+  "magic_words": []
+}
