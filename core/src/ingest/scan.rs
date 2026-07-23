@@ -12,6 +12,7 @@ const INBOX_DIR_NAME: &str = "inbox";
 
 pub struct ConversationDir {
     pub folder: PathBuf,
+    pub conversation_name: String,
     pub message_files: Vec<PathBuf>,
 }
 
@@ -57,8 +58,10 @@ pub fn scan(
                 Ok(message_files) if message_files.is_empty() => None,
                 Ok(mut message_files) => {
                     message_files.sort_by_key(|path| message_number(path).unwrap());
+                    let conversation_name = entry.file_name().to_string_lossy().into_owned();
                     Some(Ok(ConversationDir {
                         folder: entry.into_path(),
+                        conversation_name,
                         message_files,
                     }))
                 }
@@ -262,6 +265,27 @@ mod tests {
         folders.sort();
 
         assert_eq!(folders, vec![inbox.join("conv_a"), inbox.join("conv_b")]);
+    }
+
+    #[test]
+    fn scan_populates_conversation_name_from_folder_name() {
+        let export = tempdir().unwrap();
+        let inbox = export.path().join("messages").join("inbox");
+        write_file(
+            &inbox
+                .join("zoeyuan_1980919652003672")
+                .join("message_1.json"),
+            "{}",
+        );
+
+        let conversations: Vec<ConversationDir> =
+            scan(export.path()).unwrap().map(Result::unwrap).collect();
+
+        assert_eq!(conversations.len(), 1);
+        assert_eq!(
+            conversations[0].conversation_name,
+            "zoeyuan_1980919652003672"
+        );
     }
 
     #[test]
