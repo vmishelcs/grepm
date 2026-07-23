@@ -2,13 +2,13 @@ use std::path::Path;
 
 use rusqlite::Connection;
 
-pub const MIGRATIONS: &[&str] = &[
-    r#"
+pub const MIGRATIONS: &[&str] = &[r#"
     CREATE TABLE IF NOT EXISTS conversations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         raw_name TEXT NOT NULL,
         title TEXT,
-        is_still_participant INTEGER NOT NULL,
+        is_still_participant INTEGER,
+        thread_path TEXT,
         message_count INTEGER NOT NULL DEFAULT 0
     );
 
@@ -28,7 +28,7 @@ pub const MIGRATIONS: &[&str] = &[
     CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         conversation_id INTEGER NOT NULL,
-        participant_id INTEGER NOT NULL,
+        participant_id INTEGER,
         timestamp_ms INTEGER NOT NULL,
         content TEXT,
         FOREIGN KEY (conversation_id) REFERENCES conversations (id),
@@ -49,8 +49,7 @@ pub const MIGRATIONS: &[&str] = &[
         FOREIGN KEY (message_id) REFERENCES messages (id),
         FOREIGN KEY (actor_id) REFERENCES participants (id)
     );
-    "#,
-];
+    "#];
 
 pub const LATEST_VERSION: i32 = 1;
 

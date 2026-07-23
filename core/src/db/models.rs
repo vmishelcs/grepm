@@ -6,7 +6,8 @@ pub struct Conversation {
     pub id: i64,
     pub raw_name: String,
     pub title: Option<String>,
-    pub is_still_participant: bool,
+    pub is_still_participant: Option<bool>,
+    pub thread_path: Option<String>,
     pub message_count: i64,
 }
 
@@ -17,6 +18,7 @@ impl Conversation {
             raw_name: row.get("raw_name")?,
             title: row.get("title")?,
             is_still_participant: row.get("is_still_participant")?,
+            thread_path: row.get("thread_path")?,
             message_count: row.get("message_count")?,
         })
     }
@@ -56,7 +58,7 @@ impl ConversationParticipant {
 pub struct Message {
     pub id: i64,
     pub conversation_id: i64,
-    pub participant_id: i64,
+    pub participant_id: Option<i64>,
     pub timestamp_ms: i64,
     pub content: Option<String>,
 }
