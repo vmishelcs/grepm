@@ -7,6 +7,7 @@ pub const MIGRATIONS: &[&str] = &[
     CREATE TABLE IF NOT EXISTS conversations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
+        is_still_participant INTEGER NOT NULL,
         message_count INTEGER NOT NULL DEFAULT 0
     );
 
@@ -116,8 +117,11 @@ mod tests {
     }
 
     fn seed_conversation_and_participant(conn: &Connection) -> (i64, i64) {
-        conn.execute("INSERT INTO conversations (title) VALUES ('test')", [])
-            .unwrap();
+        conn.execute(
+            "INSERT INTO conversations (title, is_still_participant) VALUES ('test', 1)",
+            [],
+        )
+        .unwrap();
         let conversation_id = conn.last_insert_rowid();
 
         conn.execute("INSERT INTO participants (name) VALUES ('alice')", [])

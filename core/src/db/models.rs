@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct Conversation {
     pub id: i64,
     pub title: String,
+    pub is_still_participant: bool,
     pub message_count: i64,
 }
 
@@ -13,6 +14,7 @@ impl Conversation {
         Ok(Self {
             id: row.get("id")?,
             title: row.get("title")?,
+            is_still_participant: row.get("is_still_participant")?,
             message_count: row.get("message_count")?,
         })
     }
