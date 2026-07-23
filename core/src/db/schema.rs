@@ -32,13 +32,8 @@ pub const MIGRATIONS: &[&str] = &[r#"
         timestamp_ms INTEGER NOT NULL,
         content TEXT,
         FOREIGN KEY (conversation_id) REFERENCES conversations (id),
-        FOREIGN KEY (participant_id) REFERENCES participants (id)
-    );
-
-    CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-        content,
-        content='messages',
-        content_rowid='id'
+        FOREIGN KEY (participant_id) REFERENCES participants (id),
+        UNIQUE (conversation_id, participant_id, timestamp_ms, content)
     );
 
     CREATE TABLE IF NOT EXISTS reactions (
@@ -48,6 +43,12 @@ pub const MIGRATIONS: &[&str] = &[r#"
         reaction TEXT NOT NULL,
         FOREIGN KEY (message_id) REFERENCES messages (id),
         FOREIGN KEY (actor_id) REFERENCES participants (id)
+    );
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+        content,
+        content='messages',
+        content_rowid='id'
     );
     "#];
 
@@ -235,6 +236,52 @@ mod tests {
             result.is_err(),
             "insert referencing a nonexistent conversation/participant should fail"
         );
+    }
+
+    #[test]
+    fn duplicate_messages_are_rejected() {
+        let conn = migrated_connection();
+        let (conversation_id, participant_id) = seed_conversation_and_participant(&conn);
+
+        conn.execute(
+            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+             VALUES (?1, ?2, 0, 'hello')",
+            rusqlite::params![conversation_id, participant_id],
+        )
+        .unwrap();
+
+        let result = conn.execute(
+            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+             VALUES (?1, ?2, 0, 'hello')",
+            rusqlite::params![conversation_id, participant_id],
+        );
+
+        assert!(
+            result.is_err(),
+            "inserting the same conversation_id/participant_id/timestamp_ms/content \
+             combination twice should fail"
+        );
+    }
+
+    #[test]
+    fn messages_differing_only_in_content_are_not_duplicates() {
+        let conn = migrated_connection();
+        let (conversation_id, participant_id) = seed_conversation_and_participant(&conn);
+
+        conn.execute(
+            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+             VALUES (?1, ?2, 0, 'hello')",
+            rusqlite::params![conversation_id, participant_id],
+        )
+        .unwrap();
+
+        let result = conn.execute(
+            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+             VALUES (?1, ?2, 0, 'goodbye')",
+            rusqlite::params![conversation_id, participant_id],
+        );
+
+        assert!(result.is_ok());
     }
 
     #[test]
