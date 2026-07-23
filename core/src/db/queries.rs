@@ -1,7 +1,6 @@
 use rusqlite::{params, Connection};
 
-use crate::db::models::Message;
-use crate::ingest::parse::{RawConversationFile, RawParticipant};
+use crate::ingest::parse::{RawConversationFile, RawMessage};
 
 /// Inserts a conversation, or, if `raw_name` already has a row (e.g. a
 /// conversation split across multiple `message_N.json` files), updates its
@@ -40,15 +39,12 @@ pub fn upsert_conversation(
 /// UPDATE` is a no-op (it just reassigns the same name) rather than `DO
 /// NOTHING`, since SQLite's `RETURNING` doesn't produce a row for a
 /// `DO NOTHING` conflict.
-pub fn insert_participant(
-    conn: &Connection,
-    participant: &RawParticipant,
-) -> rusqlite::Result<i64> {
+pub fn insert_participant(conn: &Connection, name: &str) -> rusqlite::Result<i64> {
     conn.query_row(
         "INSERT INTO participants (name) VALUES (?1) \
          ON CONFLICT (name) DO UPDATE SET name = excluded.name \
          RETURNING id",
-        params![participant.name],
+        params![name],
         |row| row.get(0),
     )
 }
@@ -67,16 +63,21 @@ pub fn link_conversation_participant(
 }
 
 /// Inserts a message, ignoring it if a message with the same
-/// conversation_id, participant_id, timestamp_ms, and content already
+/// conversation_id, sender_id, timestamp_ms, and content already
 /// exists (see the `messages` table's UNIQUE constraint). Returns the new
 /// row's id, or `None` if the insert was ignored as a duplicate.
-pub fn insert_message(conn: &Connection, message: &Message) -> rusqlite::Result<Option<i64>> {
+pub fn insert_message(
+    conn: &Connection,
+    conversation_id: i64,
+    sender_id: Option<i64>,
+    message: &RawMessage,
+) -> rusqlite::Result<Option<i64>> {
     conn.execute(
-        "INSERT OR IGNORE INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+        "INSERT OR IGNORE INTO messages (conversation_id, sender_id, timestamp_ms, content) \
          VALUES (?1, ?2, ?3, ?4)",
         params![
-            message.conversation_id,
-            message.participant_id,
+            conversation_id,
+            sender_id,
             message.timestamp_ms,
             message.content,
         ],

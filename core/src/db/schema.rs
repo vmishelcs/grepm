@@ -28,12 +28,12 @@ pub const MIGRATIONS: &[&str] = &[r#"
     CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         conversation_id INTEGER NOT NULL,
-        participant_id INTEGER,
+        sender_id INTEGER,
         timestamp_ms INTEGER NOT NULL,
         content TEXT,
         FOREIGN KEY (conversation_id) REFERENCES conversations (id),
-        FOREIGN KEY (participant_id) REFERENCES participants (id),
-        UNIQUE (conversation_id, participant_id, timestamp_ms, content)
+        FOREIGN KEY (sender_id) REFERENCES participants (id),
+        UNIQUE (conversation_id, sender_id, timestamp_ms, content)
     );
 
     CREATE TABLE IF NOT EXISTS reactions (
@@ -227,7 +227,7 @@ mod tests {
         let conn = migrated_connection();
 
         let result = conn.execute(
-            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms) \
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms) \
              VALUES (1, 1, 0)",
             [],
         );
@@ -241,24 +241,24 @@ mod tests {
     #[test]
     fn duplicate_messages_are_rejected() {
         let conn = migrated_connection();
-        let (conversation_id, participant_id) = seed_conversation_and_participant(&conn);
+        let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
         conn.execute(
-            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
              VALUES (?1, ?2, 0, 'hello')",
-            rusqlite::params![conversation_id, participant_id],
+            rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
 
         let result = conn.execute(
-            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
              VALUES (?1, ?2, 0, 'hello')",
-            rusqlite::params![conversation_id, participant_id],
+            rusqlite::params![conversation_id, sender_id],
         );
 
         assert!(
             result.is_err(),
-            "inserting the same conversation_id/participant_id/timestamp_ms/content \
+            "inserting the same conversation_id/sender_id/timestamp_ms/content \
              combination twice should fail"
         );
     }
@@ -266,19 +266,19 @@ mod tests {
     #[test]
     fn messages_differing_only_in_content_are_not_duplicates() {
         let conn = migrated_connection();
-        let (conversation_id, participant_id) = seed_conversation_and_participant(&conn);
+        let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
         conn.execute(
-            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
              VALUES (?1, ?2, 0, 'hello')",
-            rusqlite::params![conversation_id, participant_id],
+            rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
 
         let result = conn.execute(
-            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
              VALUES (?1, ?2, 0, 'goodbye')",
-            rusqlite::params![conversation_id, participant_id],
+            rusqlite::params![conversation_id, sender_id],
         );
 
         assert!(result.is_ok());
@@ -287,12 +287,12 @@ mod tests {
     #[test]
     fn populate_messages_fts_indexes_existing_messages() {
         let conn = migrated_connection();
-        let (conversation_id, participant_id) = seed_conversation_and_participant(&conn);
+        let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
         conn.execute(
-            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
              VALUES (?1, ?2, 0, 'hello world')",
-            rusqlite::params![conversation_id, participant_id],
+            rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
         let message_id = conn.last_insert_rowid();
@@ -312,12 +312,12 @@ mod tests {
     #[test]
     fn populate_messages_fts_does_not_match_absent_terms() {
         let conn = migrated_connection();
-        let (conversation_id, participant_id) = seed_conversation_and_participant(&conn);
+        let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
         conn.execute(
-            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
              VALUES (?1, ?2, 0, 'apples and oranges')",
-            rusqlite::params![conversation_id, participant_id],
+            rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
 
@@ -336,18 +336,18 @@ mod tests {
     #[test]
     fn populate_messages_fts_skips_null_content() {
         let conn = migrated_connection();
-        let (conversation_id, participant_id) = seed_conversation_and_participant(&conn);
+        let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
         conn.execute(
-            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
              VALUES (?1, ?2, 0, NULL)",
-            rusqlite::params![conversation_id, participant_id],
+            rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO messages (conversation_id, participant_id, timestamp_ms, content) \
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
              VALUES (?1, ?2, 0, 'has content')",
-            rusqlite::params![conversation_id, participant_id],
+            rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
 

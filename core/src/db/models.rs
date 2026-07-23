@@ -58,7 +58,7 @@ impl ConversationParticipant {
 pub struct Message {
     pub id: i64,
     pub conversation_id: i64,
-    pub participant_id: Option<i64>,
+    pub sender_id: Option<i64>,
     pub timestamp_ms: i64,
     pub content: Option<String>,
 }
@@ -68,7 +68,7 @@ impl Message {
         Ok(Self {
             id: row.get("id")?,
             conversation_id: row.get("conversation_id")?,
-            participant_id: row.get("participant_id")?,
+            sender_id: row.get("sender_id")?,
             timestamp_ms: row.get("timestamp_ms")?,
             content: row.get("content")?,
         })
