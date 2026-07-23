@@ -1,43 +1,67 @@
 use rusqlite::{params, Connection};
 
-use crate::db::models::{Conversation, ConversationParticipant, Message, Participant};
+use crate::db::models::Message;
+use crate::ingest::parse::{RawConversationFile, RawParticipant};
 
-pub fn insert_conversation(
+/// Inserts a conversation, or, if `raw_name` already has a row (e.g. a
+/// conversation split across multiple `message_N.json` files), updates its
+/// title/is_still_participant/thread_path and adds this file's message
+/// count onto the running total. Returns the conversation's id either way.
+pub fn upsert_conversation(
     conn: &Connection,
-    conversation: &Conversation,
+    raw_name: &str,
+    conversation: &RawConversationFile,
 ) -> rusqlite::Result<i64> {
-    conn.execute(
+    let message_count = conversation.messages.len() as i64;
+    conn.query_row(
         "INSERT INTO conversations (raw_name, title, is_still_participant, thread_path, message_count) \
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+         VALUES (?1, ?2, ?3, ?4, ?5) \
+         ON CONFLICT (raw_name) DO UPDATE SET \
+             title = excluded.title, \
+             is_still_participant = excluded.is_still_participant, \
+             thread_path = excluded.thread_path, \
+             message_count = message_count + excluded.message_count \
+         RETURNING id",
         params![
-            conversation.raw_name,
+            raw_name,
             conversation.title,
             conversation.is_still_participant,
             conversation.thread_path,
-            conversation.message_count,
+            message_count,
         ],
-    )?;
-    Ok(conn.last_insert_rowid())
+        |row| row.get(0),
+    )
 }
 
-pub fn insert_participant(conn: &Connection, participant: &Participant) -> rusqlite::Result<i64> {
-    conn.execute(
-        "INSERT INTO participants (name) VALUES (?1)",
-        params![participant.name],
-    )?;
-    Ok(conn.last_insert_rowid())
-}
-
-pub fn insert_conversation_participant(
+/// Inserts a participant, or, if `name` already has a row (see the
+/// `participants` table's UNIQUE constraint), leaves it untouched, so
+/// importing the same person across many conversations doesn't create
+/// duplicate rows. Returns the participant's id either way. The `DO
+/// UPDATE` is a no-op (it just reassigns the same name) rather than `DO
+/// NOTHING`, since SQLite's `RETURNING` doesn't produce a row for a
+/// `DO NOTHING` conflict.
+pub fn insert_participant(
     conn: &Connection,
-    conversation_participant: &ConversationParticipant,
+    participant: &RawParticipant,
+) -> rusqlite::Result<i64> {
+    conn.query_row(
+        "INSERT INTO participants (name) VALUES (?1) \
+         ON CONFLICT (name) DO UPDATE SET name = excluded.name \
+         RETURNING id",
+        params![participant.name],
+        |row| row.get(0),
+    )
+}
+
+pub fn link_conversation_participant(
+    conn: &Connection,
+    conversation_id: i64,
+    participant_id: i64,
 ) -> rusqlite::Result<()> {
     conn.execute(
-        "INSERT INTO conversation_participants (conversation_id, participant_id) VALUES (?1, ?2)",
-        params![
-            conversation_participant.conversation_id,
-            conversation_participant.participant_id,
-        ],
+        "INSERT OR IGNORE INTO conversation_participants (conversation_id, participant_id) \
+         VALUES (?1, ?2)",
+        params![conversation_id, participant_id],
     )?;
     Ok(())
 }

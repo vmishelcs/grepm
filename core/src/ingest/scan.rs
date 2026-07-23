@@ -283,10 +283,7 @@ mod tests {
             scan(export.path()).unwrap().map(Result::unwrap).collect();
 
         assert_eq!(conversations.len(), 1);
-        assert_eq!(
-            conversations[0].raw_name,
-            "zoeyuan_1980919652003672"
-        );
+        assert_eq!(conversations[0].raw_name, "zoeyuan_1980919652003672");
     }
 
     #[test]

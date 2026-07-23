@@ -5,7 +5,7 @@ use rusqlite::Connection;
 pub const MIGRATIONS: &[&str] = &[r#"
     CREATE TABLE IF NOT EXISTS conversations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        raw_name TEXT NOT NULL,
+        raw_name TEXT NOT NULL UNIQUE,
         title TEXT,
         is_still_participant INTEGER,
         thread_path TEXT,
@@ -14,7 +14,7 @@ pub const MIGRATIONS: &[&str] = &[r#"
 
     CREATE TABLE IF NOT EXISTS participants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL
+        name TEXT NOT NULL UNIQUE
     );
 
     CREATE TABLE IF NOT EXISTS conversation_participants (
