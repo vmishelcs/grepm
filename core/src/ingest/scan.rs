@@ -10,9 +10,10 @@ const MESSAGE_FILE_EXTENSION: &str = "json";
 const MESSAGES_DIR_NAME: &str = "messages";
 const INBOX_DIR_NAME: &str = "inbox";
 
+#[derive(Debug)]
 pub struct ConversationDir {
     pub folder: PathBuf,
-    pub conversation_name: String,
+    pub raw_name: String,
     pub message_files: Vec<PathBuf>,
 }
 
@@ -58,10 +59,10 @@ pub fn scan(
                 Ok(message_files) if message_files.is_empty() => None,
                 Ok(mut message_files) => {
                     message_files.sort_by_key(|path| message_number(path).unwrap());
-                    let conversation_name = entry.file_name().to_string_lossy().into_owned();
+                    let raw_name = entry.file_name().to_string_lossy().into_owned();
                     Some(Ok(ConversationDir {
                         folder: entry.into_path(),
-                        conversation_name,
+                        raw_name,
                         message_files,
                     }))
                 }
@@ -268,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn scan_populates_conversation_name_from_folder_name() {
+    fn scan_populates_raw_name_from_folder_name() {
         let export = tempdir().unwrap();
         let inbox = export.path().join("messages").join("inbox");
         write_file(
@@ -283,7 +284,7 @@ mod tests {
 
         assert_eq!(conversations.len(), 1);
         assert_eq!(
-            conversations[0].conversation_name,
+            conversations[0].raw_name,
             "zoeyuan_1980919652003672"
         );
     }

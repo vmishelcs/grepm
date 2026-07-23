@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Conversation {
     pub id: i64,
-    pub title: String,
+    pub raw_name: String,
+    pub title: Option<String>,
     pub is_still_participant: bool,
     pub message_count: i64,
 }
@@ -13,6 +14,7 @@ impl Conversation {
     pub fn from_row(row: &Row) -> rusqlite::Result<Self> {
         Ok(Self {
             id: row.get("id")?,
+            raw_name: row.get("raw_name")?,
             title: row.get("title")?,
             is_still_participant: row.get("is_still_participant")?,
             message_count: row.get("message_count")?,
