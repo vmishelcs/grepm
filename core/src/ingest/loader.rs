@@ -1,10 +1,9 @@
-use std::error::Error;
-
 use rusqlite::Connection;
 
 use crate::db;
 use crate::ingest::parse::{parse_conversation_file, RawMessage};
 use crate::ingest::scan::ConversationDir;
+use crate::Result;
 
 /// Loads a single conversation into the database: for every message file,
 /// upserts the thread (`conversations` row), inserts and links its
@@ -12,7 +11,7 @@ use crate::ingest::scan::ConversationDir;
 pub fn load_conversation(
     conn: &mut Connection,
     conversation_dir: &ConversationDir,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     let tx = conn.transaction()?;
 
     for message_file in &conversation_dir.message_files {
@@ -44,7 +43,7 @@ pub fn load_messages(
     conn: &Connection,
     conversation_id: i64,
     messages: &[RawMessage],
-) -> rusqlite::Result<()> {
+) -> Result<()> {
     for message in messages {
         let sender_id = match &message.sender_name {
             Some(name) => {

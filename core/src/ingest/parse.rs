@@ -1,13 +1,22 @@
 use std::fs;
-use std::io;
 use std::mem;
 use std::path::Path;
 
 use serde::Deserialize;
 
-pub fn parse_conversation_file(path: impl AsRef<Path>) -> io::Result<RawConversationFile> {
-    let text = fs::read_to_string(path)?;
-    let mut file: RawConversationFile = serde_json::from_str(&text)?;
+use crate::{Error, Result};
+
+pub fn parse_conversation_file(path: impl AsRef<Path>) -> Result<RawConversationFile> {
+    let path = path.as_ref();
+    let text = fs::read_to_string(path).map_err(|source| Error::ReadFile {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let mut file: RawConversationFile =
+        serde_json::from_str(&text).map_err(|source| Error::Parse {
+            path: path.to_path_buf(),
+            source,
+        })?;
     file.repair_mojibake();
     Ok(file)
 }
@@ -336,9 +345,12 @@ mod tests {
         let export = tempdir().unwrap();
         let missing = export.path().join("message_1.json");
 
-        let result = parse_conversation_file(&missing);
+        let err = parse_conversation_file(&missing).unwrap_err();
 
-        assert!(result.is_err());
+        assert!(
+            matches!(&err, Error::ReadFile { path, .. } if *path == missing),
+            "a missing file should yield Error::ReadFile with its path, got: {err:?}"
+        );
     }
 
     #[test]
@@ -347,9 +359,16 @@ mod tests {
         let file = export.path().join("message_1.json");
         write_file(&file, "{ this is not valid json");
 
-        let result = parse_conversation_file(&file);
+        let err = parse_conversation_file(&file).unwrap_err();
 
-        assert!(result.is_err());
+        assert!(
+            matches!(&err, Error::Parse { path, .. } if *path == file),
+            "malformed JSON should yield Error::Parse with the file's path, got: {err:?}"
+        );
+        assert!(
+            err.to_string().contains("message_1.json"),
+            "the error message should name the offending file: {err}"
+        );
     }
 
     #[test]

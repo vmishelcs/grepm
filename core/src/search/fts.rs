@@ -1,6 +1,7 @@
 use rusqlite::{params, Connection};
 
 use crate::search::{Page, SearchHit, SearchIndex, SearchQuery, SearchResults, SortOrder};
+use crate::Result;
 
 pub struct FtsIndex<'a> {
     conn: &'a Connection,
@@ -23,7 +24,7 @@ const FILTER_SQL: &str = " \
     AND (?5 IS NULL OR m.timestamp_ms <= ?5)";
 
 impl<'a> SearchIndex for FtsIndex<'a> {
-    fn search(&self, query: &SearchQuery, page: Page) -> rusqlite::Result<SearchResults> {
+    fn search(&self, query: &SearchQuery, page: Page) -> Result<SearchResults> {
         // FTS5 treats quotes, `-`, `*`, `AND`/`OR`, etc. as query syntax;
         // wrapping the text as a quote-escaped phrase makes the match literal
         // instead of a boolean/operator expression.

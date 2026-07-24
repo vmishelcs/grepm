@@ -2,6 +2,8 @@ use std::path::Path;
 
 use rusqlite::Connection;
 
+use crate::Result;
+
 pub const MIGRATIONS: &[&str] = &[r#"
     CREATE TABLE IF NOT EXISTS conversations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,21 +63,21 @@ pub const MIGRATIONS: &[&str] = &[r#"
 
 pub const LATEST_VERSION: i32 = 1;
 
-pub fn open(path: &Path) -> rusqlite::Result<Connection> {
+pub fn open(path: &Path) -> Result<Connection> {
     let conn = Connection::open(path)?;
     configure(&conn)?;
     migrate(&conn)?;
     Ok(conn)
 }
 
-pub fn configure(conn: &Connection) -> rusqlite::Result<()> {
+pub fn configure(conn: &Connection) -> Result<()> {
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.pragma_update(None, "synchronous", "NORMAL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
     Ok(())
 }
 
-pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
+pub fn migrate(conn: &Connection) -> Result<()> {
     let current_version: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
 
     for version in current_version..LATEST_VERSION {
@@ -88,12 +90,12 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-pub fn populate_fts(conn: &Connection) -> rusqlite::Result<usize> {
-    conn.execute(
+pub fn populate_fts(conn: &Connection) -> Result<usize> {
+    Ok(conn.execute(
         "INSERT INTO messages_fts(rowid, content) \
          SELECT id, content FROM messages WHERE content != ''",
         [],
-    )
+    )?)
 }
 
 #[cfg(test)]

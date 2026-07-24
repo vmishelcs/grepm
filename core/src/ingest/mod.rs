@@ -1,9 +1,9 @@
-use std::error::Error;
 use std::path::Path;
 
 use rusqlite::Connection;
 
 use crate::db;
+use crate::Result;
 
 pub mod loader;
 pub mod parse;
@@ -16,7 +16,7 @@ pub mod scan;
 pub fn import_export(
     conn: &mut Connection,
     export_root: impl AsRef<Path>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     for conversation_dir in scan::scan(export_root)? {
         loader::load_conversation(conn, &conversation_dir?)?;
     }

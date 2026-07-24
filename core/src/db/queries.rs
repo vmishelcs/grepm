@@ -1,6 +1,7 @@
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::ingest::parse::{RawConversationFile, RawMessage};
+use crate::Result;
 
 /// Inserts a conversation, or, if a row with the same `title`/`thread_path`
 /// already exists (e.g. a conversation split across multiple
@@ -10,9 +11,9 @@ use crate::ingest::parse::{RawConversationFile, RawMessage};
 pub fn upsert_conversation(
     conn: &Connection,
     conversation: &RawConversationFile,
-) -> rusqlite::Result<i64> {
+) -> Result<i64> {
     let message_count = conversation.messages.len() as i64;
-    conn.query_row(
+    Ok(conn.query_row(
         "INSERT INTO conversations (title, is_still_participant, thread_path, message_count) \
          VALUES (?1, ?2, ?3, ?4) \
          ON CONFLICT (title, thread_path) DO UPDATE SET \
@@ -26,7 +27,7 @@ pub fn upsert_conversation(
             message_count,
         ],
         |row| row.get(0),
-    )
+    )?)
 }
 
 /// Finds or creates a participant named `name` scoped to `conversation_id`:
@@ -44,7 +45,7 @@ pub fn insert_participant(
     conn: &Connection,
     conversation_id: i64,
     name: &str,
-) -> rusqlite::Result<i64> {
+) -> Result<i64> {
     let existing_id: Option<i64> = conn
         .query_row(
             "SELECT p.id FROM participants p \
@@ -59,18 +60,18 @@ pub fn insert_participant(
         return Ok(id);
     }
 
-    conn.query_row(
+    Ok(conn.query_row(
         "INSERT INTO participants (name) VALUES (?1) RETURNING id",
         params![name],
         |row| row.get(0),
-    )
+    )?)
 }
 
 pub fn link_conversation_participant(
     conn: &Connection,
     conversation_id: i64,
     participant_id: i64,
-) -> rusqlite::Result<()> {
+) -> Result<()> {
     conn.execute(
         "INSERT OR IGNORE INTO conversation_participants (conversation_id, participant_id) \
          VALUES (?1, ?2)",
@@ -91,7 +92,7 @@ pub fn insert_message(
     conversation_id: i64,
     sender_id: Option<i64>,
     message: &RawMessage,
-) -> rusqlite::Result<Option<i64>> {
+) -> Result<Option<i64>> {
     conn.execute(
         "INSERT OR IGNORE INTO messages (conversation_id, sender_id, timestamp_ms, content) \
          VALUES (?1, ?2, ?3, ?4)",

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::search::fts::FtsIndex;
+use crate::Result;
 
 pub mod fts;
 
@@ -59,7 +60,7 @@ pub struct SearchResults {
 }
 
 pub trait SearchIndex {
-    fn search(&self, query: &SearchQuery, page: Page) -> rusqlite::Result<SearchResults>;
+    fn search(&self, query: &SearchQuery, page: Page) -> Result<SearchResults>;
 }
 
 fn build_query(text: &str, filters: &UiFilters, sort: SortOrder) -> SearchQuery {
@@ -76,7 +77,7 @@ pub fn run(
     filters: &UiFilters,
     sort: SortOrder,
     page: Page,
-) -> rusqlite::Result<SearchResults> {
+) -> Result<SearchResults> {
     let query = build_query(text, filters, sort);
     FtsIndex::new(conn).search(&query, page)
 }

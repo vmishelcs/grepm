@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
+use crate::Result;
+
 const MESSAGE_FILE_PREFIX: &str = "message_";
 const MESSAGE_FILE_EXTENSION: &str = "json";
 const MESSAGES_DIR_NAME: &str = "messages";
@@ -20,7 +22,7 @@ pub struct ConversationDir {
 /// trusting that every direct subdirectory there is a conversation rather
 /// than opening each one to look for message files. Fast enough to run as
 /// a first pass before the more expensive [`scan`] function.
-pub fn count(root: impl AsRef<Path>) -> io::Result<usize> {
+pub fn count(root: impl AsRef<Path>) -> Result<usize> {
     let inbox = find_messages_root(root)?;
     let total = std::fs::read_dir(inbox)?
         .filter_map(|entry| entry.ok())
@@ -37,7 +39,7 @@ pub fn count(root: impl AsRef<Path>) -> io::Result<usize> {
 /// legitimately has no message files (which is simply skipped).
 pub fn scan(
     root: impl AsRef<Path>,
-) -> io::Result<impl Iterator<Item = io::Result<ConversationDir>>> {
+) -> Result<impl Iterator<Item = Result<ConversationDir>>> {
     let inbox = find_messages_root(root)?;
 
     Ok(WalkDir::new(inbox)
@@ -47,7 +49,7 @@ pub fn scan(
         .filter_map(|entry| {
             let entry = match entry {
                 Ok(entry) => entry,
-                Err(err) => return Some(Err(err.into())),
+                Err(err) => return Some(Err(io::Error::from(err).into())),
             };
 
             if !entry.file_type().is_dir() {
@@ -63,7 +65,7 @@ pub fn scan(
                         message_files,
                     }))
                 }
-                Err(err) => Some(Err(err)),
+                Err(err) => Some(Err(err.into())),
             }
         }))
 }
@@ -72,13 +74,13 @@ pub fn scan(
 /// export format doesn't guarantee a fixed depth for it (e.g. it may be
 /// nested under a dated export folder), so this searches for it rather than
 /// assuming a fixed relative path.
-pub fn find_messages_root(root: impl AsRef<Path>) -> io::Result<PathBuf> {
+pub fn find_messages_root(root: impl AsRef<Path>) -> Result<PathBuf> {
     let root = root.as_ref();
     validate_root(root)?;
 
     WalkDir::new(root)
         .into_iter()
-        .filter_map(Result::ok)
+        .filter_map(|entry| entry.ok())
         .find(|entry| {
             entry.file_type().is_dir()
                 && entry.file_name() == OsStr::new(INBOX_DIR_NAME)
@@ -94,6 +96,7 @@ pub fn find_messages_root(root: impl AsRef<Path>) -> io::Result<PathBuf> {
                     root.display()
                 ),
             )
+            .into()
         })
 }
 

@@ -7,6 +7,7 @@ edition = "2021"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+thiserror = "2.0.19"
 walkdir = "2"
 
 [dev-dependencies]
