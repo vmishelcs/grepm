@@ -97,13 +97,15 @@ message, and the `reactions` table exists in the schema
 `load_messages` never does anything with `message.reactions`. Reaction
 data is silently dropped during import.
 
-### 7. `messages_fts` is never populated during import
+### 7. ~~`messages_fts` is never populated during import~~ (fixed)
 
-`populate_messages_fts` (`src/db/schema.rs:90-96`) exists and is tested,
-but nothing in `ingest::loader` calls it. As it stands, after a fresh
-import the `messages_fts` table stays empty and full-text search over
-message content will return nothing until something remembers to call
-`populate_messages_fts` manually.
+`populate_fts` (`src/db/schema.rs:91-97`, renamed from
+`populate_messages_fts`) is now called at the end of
+`ingest::import_export` (`src/ingest/mod.rs:16-27`), after every
+conversation has been loaded, so a fresh import leaves `messages_fts`
+fully indexed. `messages_fts` also now tokenizes with
+`unicode61 remove_diacritics 2` (`src/db/schema.rs:54-59`), so a search
+for "cafe" matches content containing "café".
 
 ## Robustness
 
@@ -119,7 +121,22 @@ of `migrate`) would then fail. Only matters if a future migration is
 buggy or partially applies, but there's currently no recovery path if it
 happens.
 
-### 9. `repair_mojibake` assumes exports never contain legitimately-correct non-ASCII text
+### 9. Re-importing the same export (or an updated one) is untested and may not behave correctly
+
+`import_export` (`src/ingest/mod.rs:16-27`) currently assumes an export is
+only ever imported once. Conversation/participant/message rows dedup
+correctly on a second import (they upsert or insert-or-ignore), but
+`populate_fts` (`src/db/schema.rs:91-97`) does a plain
+`INSERT INTO messages_fts(rowid, content) SELECT ...` with no conflict
+handling — calling `import_export` a second time re-inserts every
+already-indexed message's rowid into `messages_fts`, and it's untested
+whether SQLite's FTS5 accepts, errors on, or silently duplicates a
+repeated `rowid` insert into an external-content table. Needs a real fix
+(e.g. delete-then-repopulate, or an `INSERT OR REPLACE`-equivalent for
+FTS5's content-less external-content sync commands) plus a re-import
+test before this is safe to rely on for an updated/re-run export.
+
+### 10. `repair_mojibake` assumes exports never contain legitimately-correct non-ASCII text
 
 `repair_mojibake` (`src/ingest/parse.rs:15-42`) is applied unconditionally
 to every non-ASCII string on the stated assumption that real Messenger

@@ -54,7 +54,8 @@ pub const MIGRATIONS: &[&str] = &[r#"
     CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
         content,
         content='messages',
-        content_rowid='id'
+        content_rowid='id',
+        tokenize='unicode61 remove_diacritics 2'
     );
     "#];
 
@@ -87,7 +88,7 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-pub fn populate_messages_fts(conn: &Connection) -> rusqlite::Result<usize> {
+pub fn populate_fts(conn: &Connection) -> rusqlite::Result<usize> {
     conn.execute(
         "INSERT INTO messages_fts(rowid, content) \
          SELECT id, content FROM messages WHERE content != ''",
@@ -317,7 +318,7 @@ mod tests {
     }
 
     #[test]
-    fn populate_messages_fts_indexes_existing_messages() {
+    fn populate_fts_indexes_existing_messages() {
         let conn = migrated_connection();
         let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
@@ -329,7 +330,7 @@ mod tests {
         .unwrap();
         let message_id = conn.last_insert_rowid();
 
-        populate_messages_fts(&conn).unwrap();
+        populate_fts(&conn).unwrap();
 
         let matched: i64 = conn
             .query_row(
@@ -342,7 +343,7 @@ mod tests {
     }
 
     #[test]
-    fn populate_messages_fts_does_not_match_absent_terms() {
+    fn populate_fts_does_not_match_absent_terms() {
         let conn = migrated_connection();
         let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
@@ -353,7 +354,7 @@ mod tests {
         )
         .unwrap();
 
-        populate_messages_fts(&conn).unwrap();
+        populate_fts(&conn).unwrap();
 
         let match_count: i64 = conn
             .query_row(
@@ -366,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    fn populate_messages_fts_skips_empty_content() {
+    fn populate_fts_skips_empty_content() {
         let conn = migrated_connection();
         let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
@@ -388,7 +389,7 @@ mod tests {
         // search index, so it can't be used to check what got indexed.
         // The affected-row count from the populating INSERT is the only
         // reliable signal here.
-        let indexed_count = populate_messages_fts(&conn).unwrap();
+        let indexed_count = populate_fts(&conn).unwrap();
         assert_eq!(indexed_count, 1);
     }
 }
