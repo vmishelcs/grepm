@@ -76,10 +76,10 @@ pub fn scan_inbox(inbox: impl AsRef<Path>) -> impl Iterator<Item = Result<Conver
             match message_files_in(entry.path()) {
                 Ok(message_files) if message_files.is_empty() => None,
                 Ok(mut message_files) => {
-                    message_files.sort_by_key(|path| message_number(path).unwrap());
+                    message_files.sort_unstable_by_key(|&(number, _)| number);
                     Some(Ok(ConversationDir {
                         folder: entry.into_path(),
-                        message_files,
+                        message_files: message_files.into_iter().map(|(_, path)| path).collect(),
                     }))
                 }
                 Err(err) => Some(Err(err.into())),
@@ -142,21 +142,23 @@ fn validate_root(root: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn message_files_in(dir: &Path) -> io::Result<Vec<PathBuf>> {
+/// Collects `dir`'s `message_N.json` files keyed by `N`. Parsing the number
+/// here, where files are admitted, means every returned entry has one by
+/// construction — the sort in [`scan`] can key on it with no failure path.
+fn message_files_in(dir: &Path) -> io::Result<Vec<(u64, PathBuf)>> {
     let mut message_files = Vec::new();
 
     for entry in fs::read_dir(dir)? {
         let path = entry?.path();
-        if is_message_file(&path) {
-            message_files.push(path);
+        if !path.is_file() {
+            continue;
+        }
+        if let Some(number) = message_number(&path) {
+            message_files.push((number, path));
         }
     }
 
     Ok(message_files)
-}
-
-fn is_message_file(path: &Path) -> bool {
-    path.is_file() && message_number(path).is_some()
 }
 
 /// Extracts `N` from a `message_N.json` path, so files can be sorted in

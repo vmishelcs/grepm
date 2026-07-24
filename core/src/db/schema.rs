@@ -2,7 +2,7 @@ use std::path::Path;
 
 use rusqlite::Connection;
 
-use crate::Result;
+use crate::{Error, Result};
 
 pub const MIGRATIONS: &[&str] = &[r#"
     CREATE TABLE IF NOT EXISTS conversations (
@@ -79,6 +79,17 @@ pub fn configure(conn: &Connection) -> Result<()> {
 
 pub fn migrate(conn: &mut Connection) -> Result<()> {
     let current_version: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+
+    // A version beyond LATEST_VERSION means the database was created by a
+    // newer build (or isn't ours at all). Proceeding would mean reading and
+    // writing a schema this code doesn't understand — refuse instead of
+    // silently treating it as up to date.
+    if current_version > LATEST_VERSION {
+        return Err(Error::UnsupportedSchemaVersion {
+            found: current_version,
+            supported: LATEST_VERSION,
+        });
+    }
 
     for version in current_version..LATEST_VERSION {
         // An uncommitted `Transaction` rolls back when dropped, so a failed
@@ -195,6 +206,25 @@ mod tests {
         migrate(&mut conn).unwrap();
 
         assert!(table_names(&conn).is_empty());
+    }
+
+    #[test]
+    fn migrate_rejects_a_database_from_a_newer_app_version() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        configure(&conn).unwrap();
+        conn.pragma_update(None, "user_version", LATEST_VERSION + 1)
+            .unwrap();
+
+        let err = migrate(&mut conn).unwrap_err();
+
+        assert!(
+            matches!(
+                err,
+                Error::UnsupportedSchemaVersion { found, supported }
+                    if found == LATEST_VERSION + 1 && supported == LATEST_VERSION
+            ),
+            "a user_version beyond LATEST_VERSION should be refused, got: {err:?}"
+        );
     }
 
     #[test]

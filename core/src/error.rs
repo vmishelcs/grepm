@@ -24,6 +24,12 @@ pub enum Error {
         path: PathBuf,
         source: serde_json::Error,
     },
+
+    #[error(
+        "database schema version {found} is newer than this build supports \
+         ({supported}); it was probably created by a newer version of the app"
+    )]
+    UnsupportedSchemaVersion { found: i32, supported: i32 },
 }
 
 #[cfg(test)]
