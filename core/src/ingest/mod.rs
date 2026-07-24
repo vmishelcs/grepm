@@ -2,7 +2,7 @@ use std::path::Path;
 
 use rusqlite::Connection;
 
-use crate::db;
+use crate::db::schema;
 use crate::Result;
 
 pub mod loader;
@@ -13,15 +13,12 @@ pub mod scan;
 /// export's root directory, i.e. the directory containing `messages/`) into
 /// the database at `conn`, then (re)builds the full-text search index over
 /// every imported message.
-pub fn import_export(
-    conn: &mut Connection,
-    export_root: impl AsRef<Path>,
-) -> Result<()> {
+pub fn import_export(conn: &mut Connection, export_root: impl AsRef<Path>) -> Result<()> {
     for conversation_dir in scan::scan(export_root)? {
         loader::load_conversation(conn, &conversation_dir?)?;
     }
 
-    db::populate_fts(conn)?;
+    schema::populate_fts(conn)?;
 
     Ok(())
 }
@@ -37,9 +34,9 @@ mod tests {
     use crate::db::schema;
 
     fn migrated_connection() -> Connection {
-        let conn = Connection::open_in_memory().unwrap();
+        let mut conn = Connection::open_in_memory().unwrap();
         schema::configure(&conn).unwrap();
-        schema::migrate(&conn).unwrap();
+        schema::migrate(&mut conn).unwrap();
         conn
     }
 

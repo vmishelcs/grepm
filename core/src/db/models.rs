@@ -58,7 +58,10 @@ pub struct Message {
     pub conversation_id: i64,
     pub sender_id: Option<i64>,
     pub timestamp_ms: i64,
-    pub content: Option<String>,
+    /// Never absent: the schema declares `content TEXT NOT NULL DEFAULT ''`
+    /// (ingestion stores a missing content as `''`), so an `Option` here
+    /// would invite handling a `None` that can't occur.
+    pub content: String,
 }
 
 impl Message {
@@ -89,5 +92,43 @@ impl Reaction {
             actor_id: row.get("actor_id")?,
             reaction: row.get("reaction")?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::Connection;
+
+    use super::*;
+    use crate::db::schema;
+
+    // Exercises `Message::from_row` against the real migrated schema (not a
+    // hand-built row), so the mapper and the schema can't silently drift
+    // apart — in particular, `content`'s NOT NULL DEFAULT ''.
+    #[test]
+    fn message_from_row_maps_a_row_with_defaulted_content_and_null_sender() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        schema::configure(&conn).unwrap();
+        schema::migrate(&mut conn).unwrap();
+        conn.execute(
+            "INSERT INTO conversations (title, thread_path) VALUES ('t', 'inbox/t')",
+            [],
+        )
+        .unwrap();
+        let conversation_id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO messages (conversation_id, timestamp_ms) VALUES (?1, 5000)",
+            [conversation_id],
+        )
+        .unwrap();
+
+        let message = conn
+            .query_row("SELECT * FROM messages", [], Message::from_row)
+            .unwrap();
+
+        assert_eq!(message.conversation_id, conversation_id);
+        assert_eq!(message.sender_id, None);
+        assert_eq!(message.timestamp_ms, 5000);
+        assert_eq!(message.content, "");
     }
 }

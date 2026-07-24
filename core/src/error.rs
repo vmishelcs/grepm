@@ -17,10 +17,7 @@ pub enum Error {
     Db(#[from] rusqlite::Error),
 
     #[error("failed to read {}: {source}", path.display())]
-    ReadFile {
-        path: PathBuf,
-        source: io::Error,
-    },
+    ReadFile { path: PathBuf, source: io::Error },
 
     #[error("failed to parse {}: {source}", path.display())]
     Parse {

@@ -5,10 +5,13 @@ use crate::Result;
 
 pub mod fts;
 
+/// A pagination window. The fields are unsigned so that a negative value
+/// coming from the UI fails at deserialization instead of reaching SQL,
+/// where a negative LIMIT means "no limit at all".
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Page {
-    pub limit: i64,
-    pub offset: i64,
+    pub limit: u32,
+    pub offset: u32,
 }
 
 impl Default for Page {
@@ -80,4 +83,35 @@ pub fn run(
 ) -> Result<SearchResults> {
     let query = build_query(text, filters, sort);
     FtsIndex::new(conn).search(&query, page)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn page_deserialization_rejects_a_negative_limit() {
+        let result = serde_json::from_str::<Page>(r#"{"limit": -1, "offset": 0}"#);
+
+        assert!(
+            result.is_err(),
+            "a negative limit must fail at deserialization; in SQL it would \
+             mean 'no limit at all'"
+        );
+    }
+
+    #[test]
+    fn page_deserialization_rejects_a_negative_offset() {
+        let result = serde_json::from_str::<Page>(r#"{"limit": 32, "offset": -5}"#);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn page_deserializes_from_valid_input() {
+        let page: Page = serde_json::from_str(r#"{"limit": 10, "offset": 20}"#).unwrap();
+
+        assert_eq!(page.limit, 10);
+        assert_eq!(page.offset, 20);
+    }
 }

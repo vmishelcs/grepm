@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-use crate::db;
+use crate::db::queries;
 use crate::ingest::parse::{parse_conversation_file, RawMessage};
 use crate::ingest::scan::ConversationDir;
 use crate::Result;
@@ -8,21 +8,18 @@ use crate::Result;
 /// Loads a single conversation into the database: for every message file,
 /// upserts the thread (`conversations` row), inserts and links its
 /// participants, and loads its messages, all within one transaction.
-pub fn load_conversation(
-    conn: &mut Connection,
-    conversation_dir: &ConversationDir,
-) -> Result<()> {
+pub fn load_conversation(conn: &mut Connection, conversation_dir: &ConversationDir) -> Result<()> {
     let tx = conn.transaction()?;
 
     for message_file in &conversation_dir.message_files {
         let raw_file = parse_conversation_file(message_file)?;
 
-        let conversation_id = db::upsert_conversation(&tx, &raw_file)?;
+        let conversation_id = queries::upsert_conversation(&tx, &raw_file)?;
 
         for raw_participant in &raw_file.participants {
             let participant_id =
-                db::insert_participant(&tx, conversation_id, &raw_participant.name)?;
-            db::link_conversation_participant(&tx, conversation_id, participant_id)?;
+                queries::insert_participant(&tx, conversation_id, &raw_participant.name)?;
+            queries::link_conversation_participant(&tx, conversation_id, participant_id)?;
         }
 
         load_messages(&tx, conversation_id, &raw_file.messages)?;
@@ -35,7 +32,7 @@ pub fn load_conversation(
 
 /// Loads a conversation's messages, resolving each message's sender name to
 /// a participant id (scoped to this conversation, see
-/// [`db::insert_participant`]) along the way, and linking that participant
+/// [`queries::insert_participant`]) along the way, and linking that participant
 /// to the conversation in case they weren't already in a `participants`
 /// list. Duplicate messages (per the `messages` table's UNIQUE constraint)
 /// are silently skipped.
@@ -47,13 +44,13 @@ pub fn load_messages(
     for message in messages {
         let sender_id = match &message.sender_name {
             Some(name) => {
-                let participant_id = db::insert_participant(conn, conversation_id, name)?;
-                db::link_conversation_participant(conn, conversation_id, participant_id)?;
+                let participant_id = queries::insert_participant(conn, conversation_id, name)?;
+                queries::link_conversation_participant(conn, conversation_id, participant_id)?;
                 Some(participant_id)
             }
             None => None,
         };
-        db::insert_message(conn, conversation_id, sender_id, message)?;
+        queries::insert_message(conn, conversation_id, sender_id, message)?;
     }
 
     Ok(())
@@ -70,9 +67,9 @@ mod tests {
     use crate::db::schema;
 
     fn migrated_connection() -> Connection {
-        let conn = Connection::open_in_memory().unwrap();
+        let mut conn = Connection::open_in_memory().unwrap();
         schema::configure(&conn).unwrap();
-        schema::migrate(&conn).unwrap();
+        schema::migrate(&mut conn).unwrap();
         conn
     }
 
@@ -429,7 +426,8 @@ mod tests {
     fn load_messages_leaves_sender_id_null_when_sender_name_is_absent() {
         let conn = migrated_connection();
         let conversation_id =
-            db::upsert_conversation(&conn, &parse_message_json(r#"{"participants": []}"#)).unwrap();
+            queries::upsert_conversation(&conn, &parse_message_json(r#"{"participants": []}"#))
+                .unwrap();
 
         let messages = parse_message_json(
             r#"{

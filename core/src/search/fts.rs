@@ -44,7 +44,15 @@ impl<'a> SearchIndex for FtsIndex<'a> {
             SortOrder::Oldest => "m.timestamp_ms ASC",
         };
 
-        let count: i64 = self.conn.query_row(
+        // The total count and the page of hits are two separate reads; the
+        // transaction makes them see one snapshot, so a write landing in
+        // between (e.g. an import on another connection) can't make `count`
+        // disagree with the hits. `unchecked_transaction` because `self`
+        // only holds a shared borrow; this is safe here since no other
+        // transaction can be entangled with these two read-only queries.
+        let tx = self.conn.unchecked_transaction()?;
+
+        let count: i64 = tx.query_row(
             &format!(
                 "SELECT count(*) \
                  FROM messages_fts \
@@ -56,7 +64,7 @@ impl<'a> SearchIndex for FtsIndex<'a> {
             |row| row.get(0),
         )?;
 
-        let mut stmt = self.conn.prepare(&format!(
+        let mut stmt = tx.prepare(&format!(
             "SELECT m.id, m.conversation_id, c.title, p.name, m.timestamp_ms, \
                     snippet(messages_fts, 0, '[', ']', '...', 8) \
              FROM messages_fts \
@@ -92,6 +100,9 @@ impl<'a> SearchIndex for FtsIndex<'a> {
             )?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
+        drop(stmt);
+        tx.commit()?;
+
         Ok(SearchResults {
             hits,
             count: count as usize,
@@ -107,9 +118,9 @@ mod tests {
     use crate::search::UiFilters;
 
     fn migrated_connection() -> Connection {
-        let conn = Connection::open_in_memory().unwrap();
+        let mut conn = Connection::open_in_memory().unwrap();
         schema::configure(&conn).unwrap();
-        schema::migrate(&conn).unwrap();
+        schema::migrate(&mut conn).unwrap();
         conn
     }
 
@@ -432,6 +443,26 @@ mod tests {
             ids,
             vec![more_relevant, less_relevant],
             "the message mentioning 'coffee' more often should rank first under BM25"
+        );
+    }
+
+    #[test]
+    fn search_commits_its_read_transaction_and_leaves_the_connection_free() {
+        let conn = migrated_connection();
+        let team = insert_conversation(&conn, "Team Chat", "inbox/team");
+        let alice = insert_participant(&conn, team, "Alice");
+        insert_message(&conn, team, alice, 1000, "coffee");
+        schema::populate_fts(&conn).unwrap();
+
+        let index = FtsIndex::new(&conn);
+        index
+            .search(&text_query("coffee", UiFilters::default()), Page::default())
+            .unwrap();
+
+        assert!(
+            conn.unchecked_transaction().is_ok(),
+            "search should commit its internal read transaction, leaving \
+             the connection free to start another one"
         );
     }
 

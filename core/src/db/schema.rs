@@ -64,9 +64,9 @@ pub const MIGRATIONS: &[&str] = &[r#"
 pub const LATEST_VERSION: i32 = 1;
 
 pub fn open(path: &Path) -> Result<Connection> {
-    let conn = Connection::open(path)?;
+    let mut conn = Connection::open(path)?;
     configure(&conn)?;
-    migrate(&conn)?;
+    migrate(&mut conn)?;
     Ok(conn)
 }
 
@@ -77,14 +77,16 @@ pub fn configure(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub fn migrate(conn: &Connection) -> Result<()> {
+pub fn migrate(conn: &mut Connection) -> Result<()> {
     let current_version: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
 
     for version in current_version..LATEST_VERSION {
-        conn.execute_batch("BEGIN;")?;
-        conn.execute_batch(MIGRATIONS[version as usize])?;
-        conn.pragma_update(None, "user_version", version + 1)?;
-        conn.execute_batch("COMMIT;")?;
+        // An uncommitted `Transaction` rolls back when dropped, so a failed
+        // migration can't strand the connection inside an open transaction.
+        let tx = conn.transaction()?;
+        tx.execute_batch(MIGRATIONS[version as usize])?;
+        tx.pragma_update(None, "user_version", version + 1)?;
+        tx.commit()?;
     }
 
     Ok(())
@@ -103,9 +105,9 @@ mod tests {
     use super::*;
 
     fn migrated_connection() -> Connection {
-        let conn = Connection::open_in_memory().unwrap();
+        let mut conn = Connection::open_in_memory().unwrap();
         configure(&conn).unwrap();
-        migrate(&conn).unwrap();
+        migrate(&mut conn).unwrap();
         conn
     }
 
@@ -171,9 +173,9 @@ mod tests {
 
     #[test]
     fn migrate_is_idempotent() {
-        let conn = migrated_connection();
+        let mut conn = migrated_connection();
 
-        migrate(&conn).unwrap();
+        migrate(&mut conn).unwrap();
 
         let version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
@@ -183,16 +185,55 @@ mod tests {
 
     #[test]
     fn migrate_applies_nothing_once_already_at_latest_version() {
-        let conn = Connection::open_in_memory().unwrap();
+        let mut conn = Connection::open_in_memory().unwrap();
         configure(&conn).unwrap();
         conn.pragma_update(None, "user_version", LATEST_VERSION)
             .unwrap();
 
         // If this didn't stop at LATEST_VERSION, it would index past the end
         // of MIGRATIONS and panic.
-        migrate(&conn).unwrap();
+        migrate(&mut conn).unwrap();
 
         assert!(table_names(&conn).is_empty());
+    }
+
+    #[test]
+    fn migrate_rolls_back_a_failed_migration_and_leaves_the_connection_usable() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        configure(&conn).unwrap();
+        // Sabotage the migration partway through: with a pre-existing
+        // `messages` table already holding duplicate rows, the migration's
+        // CREATE UNIQUE INDEX idx_messages_dedup genuinely fails (IF NOT
+        // EXISTS only skips creation when the *index* already exists).
+        conn.execute_batch(
+            "CREATE TABLE messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                conversation_id INTEGER NOT NULL,
+                sender_id INTEGER,
+                timestamp_ms INTEGER NOT NULL,
+                content TEXT NOT NULL DEFAULT ''
+            );
+            INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content)
+                VALUES (1, 1, 0, 'dup'), (1, 1, 0, 'dup');",
+        )
+        .unwrap();
+
+        let result = migrate(&mut conn);
+
+        assert!(result.is_err(), "the sabotaged migration should fail");
+
+        let version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(
+            version, 0,
+            "a failed migration should not bump user_version"
+        );
+
+        assert!(
+            conn.transaction().is_ok(),
+            "the failed migration should not leave an open transaction behind"
+        );
     }
 
     #[test]

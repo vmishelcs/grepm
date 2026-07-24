@@ -8,10 +8,7 @@ use crate::Result;
 /// `message_N.json` files), updates its is_still_participant and adds this
 /// file's message count onto the running total. Returns the conversation's
 /// id either way.
-pub fn upsert_conversation(
-    conn: &Connection,
-    conversation: &RawConversationFile,
-) -> Result<i64> {
+pub fn upsert_conversation(conn: &Connection, conversation: &RawConversationFile) -> Result<i64> {
     let message_count = conversation.messages.len() as i64;
     Ok(conn.query_row(
         "INSERT INTO conversations (title, is_still_participant, thread_path, message_count) \
@@ -41,11 +38,7 @@ pub fn upsert_conversation(
 /// conversations). Scoping the lookup to a single conversation avoids
 /// merging them, at the cost of a person who's in several conversations
 /// getting a separate `participants` row in each.
-pub fn insert_participant(
-    conn: &Connection,
-    conversation_id: i64,
-    name: &str,
-) -> Result<i64> {
+pub fn insert_participant(conn: &Connection, conversation_id: i64, name: &str) -> Result<i64> {
     let existing_id: Option<i64> = conn
         .query_row(
             "SELECT p.id FROM participants p \
