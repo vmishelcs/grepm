@@ -18,7 +18,7 @@ use tempfile::{tempdir, TempDir};
 use grepm_core::db;
 use grepm_core::ingest::import_export;
 use grepm_core::search::fts::FtsIndex;
-use grepm_core::search::{Page, SearchIndex, SearchQuery, SearchResults, SortOrder, UiFilters};
+use grepm_core::search::{self, Page, SearchIndex, SearchQuery, SearchResults, SortOrder, UiFilters};
 
 fn write_file(path: &Path, contents: &str) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -119,6 +119,27 @@ fn query(text: &str, filters: UiFilters, sort: SortOrder) -> SearchQuery {
 
 fn search(conn: &Connection, query: SearchQuery, page: Page) -> SearchResults {
     FtsIndex::new(conn).search(&query, page).unwrap()
+}
+
+/// Imports a single conversation `message_1.json` (given as its JSON body)
+/// into a real on-disk database. Returns the `db_dir` guard alongside the
+/// connection so the database file outlives the call.
+fn db_from_conversation(message_json: &str) -> (TempDir, Connection) {
+    let export = tempdir().unwrap();
+    let db_dir = tempdir().unwrap();
+    write_file(
+        &export
+            .path()
+            .join("messages")
+            .join("inbox")
+            .join("conv")
+            .join("message_1.json"),
+        message_json,
+    );
+
+    let mut conn = db::schema::open(&db_dir.path().join("grepm.sqlite3")).unwrap();
+    import_export(&mut conn, export.path()).unwrap();
+    (db_dir, conn)
 }
 
 #[test]
@@ -390,5 +411,83 @@ fn sorts_by_relevance_using_bm25() {
     assert_eq!(
         results.hits[0].timestamp_ms, 1750,
         "the message mentioning 'coffee' most often should rank first under BM25"
+    );
+}
+
+#[test]
+fn run_searches_through_the_public_entry_point_and_trims_the_query_text() {
+    let (_db_dir, conn) = seeded_db();
+
+    // `search::run` is the composition root the app calls: it builds the
+    // query (trimming the text) and dispatches through the SearchIndex
+    // trait. Padding the term with whitespace still finds every "coffee"
+    // hit, which only holds if run trimmed it before the FTS phrase match.
+    let results = search::run(
+        &conn,
+        "  coffee  ",
+        &UiFilters::default(),
+        SortOrder::Latest,
+        Page::default(),
+    )
+    .unwrap();
+
+    assert_eq!(results.count, 4);
+    assert_eq!(results.hits.len(), 4);
+}
+
+#[test]
+fn run_applies_filters_and_sort_end_to_end() {
+    let (_db_dir, conn) = seeded_db();
+
+    let filters = UiFilters {
+        participant: Some("Alice".to_string()),
+        ..Default::default()
+    };
+    let results = search::run(&conn, "coffee", &filters, SortOrder::Oldest, Page::default()).unwrap();
+
+    // Alice's two "coffee" messages, oldest first.
+    let timestamps: Vec<i64> = results.hits.iter().map(|hit| hit.timestamp_ms).collect();
+    assert_eq!(timestamps, vec![1000, 2500]);
+}
+
+#[test]
+fn attachment_only_messages_are_not_searchable_but_captions_are() {
+    let (_db_dir, conn) = db_from_conversation(
+        r#"{
+            "participants": [{"name": "Alice"}],
+            "messages": [
+                {"sender_name": "Alice", "timestamp_ms": 1000, "content": "let's get coffee"},
+                {
+                    "sender_name": "Alice",
+                    "timestamp_ms": 2000,
+                    "content": "coffee latte art",
+                    "photos": [{"uri": "photos/1.jpg"}]
+                },
+                {
+                    "sender_name": "Alice",
+                    "timestamp_ms": 3000,
+                    "photos": [{"uri": "photos/2.jpg"}]
+                }
+            ],
+            "title": "Alice",
+            "is_still_participant": true,
+            "thread_path": "inbox/conv"
+        }"#,
+    );
+
+    let results = search(
+        &conn,
+        query("coffee", UiFilters::default(), SortOrder::Oldest),
+        Page::default(),
+    );
+
+    // The plain text message and the captioned photo both match "coffee";
+    // the caption-less photo message (NULL content, never indexed) does not.
+    let timestamps: Vec<i64> = results.hits.iter().map(|hit| hit.timestamp_ms).collect();
+    assert_eq!(
+        timestamps,
+        vec![1000, 2000],
+        "an attachment message is searchable by its caption, but an \
+         attachment-only message with no text is not"
     );
 }

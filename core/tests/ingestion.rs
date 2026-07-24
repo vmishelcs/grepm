@@ -300,6 +300,333 @@ fn repairs_mojibake_content_and_makes_it_diacritic_insensitively_searchable() {
     );
 }
 
+/// A conversation exercising every message shape ingestion distinguishes:
+/// a plain text message, one of each attachment kind (photos/videos/
+/// audio_files/gifs), a photo message that also carries a text caption, and
+/// a multi-attachment photo batch. Reused across the attachment tests below.
+const CONVERSATION_WITH_ATTACHMENTS: &str = r#"{
+    "participants": [{"name": "Alice"}],
+    "messages": [
+        {"sender_name": "Alice", "timestamp_ms": 1000, "content": "morning!"},
+        {
+            "sender_name": "Alice",
+            "timestamp_ms": 2000,
+            "photos": [{"uri": "photos/1.jpg", "creation_timestamp": 1712345678}]
+        },
+        {
+            "sender_name": "Alice",
+            "timestamp_ms": 3000,
+            "videos": [{"uri": "videos/1.mp4", "creation_timestamp": 1712345679}]
+        },
+        {
+            "sender_name": "Alice",
+            "timestamp_ms": 4000,
+            "audio_files": [{"uri": "audio/1.aac"}]
+        },
+        {
+            "sender_name": "Alice",
+            "timestamp_ms": 5000,
+            "gifs": [{"uri": "gifs/1.gif"}]
+        },
+        {
+            "sender_name": "Alice",
+            "timestamp_ms": 6000,
+            "content": "check these out",
+            "photos": [
+                {"uri": "photos/2.jpg", "creation_timestamp": 1712345680},
+                {"uri": "photos/3.jpg", "creation_timestamp": 1712345681}
+            ]
+        }
+    ],
+    "title": "Alice",
+    "is_still_participant": true,
+    "thread_path": "inbox/alice_attachments"
+}"#;
+
+/// Imports [`CONVERSATION_WITH_ATTACHMENTS`] into a real on-disk database.
+/// Returns the `db_dir` guard alongside the connection so the database file
+/// outlives the call (dropping it would delete the file out from under the
+/// still-open connection); the export dir is only needed during the import.
+fn import_conversation_with_attachments() -> (tempfile::TempDir, Connection) {
+    let export = tempdir().unwrap();
+    let db_dir = tempdir().unwrap();
+    write_file(
+        &export
+            .path()
+            .join("messages")
+            .join("inbox")
+            .join("alice_attachments")
+            .join("message_1.json"),
+        CONVERSATION_WITH_ATTACHMENTS,
+    );
+
+    let mut conn = open_db(db_dir.path());
+    import_export(&mut conn, export.path()).unwrap();
+    (db_dir, conn)
+}
+
+#[test]
+fn classifies_each_message_by_its_attachment_kind_and_counts_attachments() {
+    let (_db_dir, conn) = import_conversation_with_attachments();
+
+    let rows: Vec<(i64, String, i64, Option<String>)> = conn
+        .prepare(
+            "SELECT timestamp_ms, type, attachment_count, content \
+             FROM messages ORDER BY timestamp_ms",
+        )
+        .unwrap()
+        .query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+
+    assert_eq!(
+        rows,
+        vec![
+            (1000, "text".to_string(), 0, Some("morning!".to_string())),
+            (2000, "photos".to_string(), 1, None),
+            (3000, "videos".to_string(), 1, None),
+            (4000, "audio_files".to_string(), 1, None),
+            (5000, "gifs".to_string(), 1, None),
+            // An attachment message can carry a caption: its type is still
+            // the attachment kind, but the caption rides along in content.
+            (
+                6000,
+                "photos".to_string(),
+                2,
+                Some("check these out".to_string())
+            ),
+        ]
+    );
+}
+
+#[test]
+fn persists_each_attachment_row_with_its_kind_uri_and_creation_timestamp() {
+    let (_db_dir, conn) = import_conversation_with_attachments();
+
+    let attachments: Vec<(i64, String, Option<String>, Option<i64>)> = conn
+        .prepare(
+            "SELECT m.timestamp_ms, a.type, a.uri, a.creation_timestamp \
+             FROM attachments a JOIN messages m ON m.id = a.message_id \
+             ORDER BY m.timestamp_ms, a.uri",
+        )
+        .unwrap()
+        .query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+
+    assert_eq!(
+        attachments,
+        vec![
+            (2000, "photos".to_string(), Some("photos/1.jpg".to_string()), Some(1712345678)),
+            (3000, "videos".to_string(), Some("videos/1.mp4".to_string()), Some(1712345679)),
+            (4000, "audio_files".to_string(), Some("audio/1.aac".to_string()), None),
+            (5000, "gifs".to_string(), Some("gifs/1.gif".to_string()), None),
+            (6000, "photos".to_string(), Some("photos/2.jpg".to_string()), Some(1712345680)),
+            (6000, "photos".to_string(), Some("photos/3.jpg".to_string()), Some(1712345681)),
+        ]
+    );
+}
+
+#[test]
+fn indexes_only_messages_that_have_text_content() {
+    let (_db_dir, conn) = import_conversation_with_attachments();
+
+    // A plain `count(*)` on an external-content FTS5 table reads through to
+    // `messages`, so it can't tell us what was indexed; the `%_docsize`
+    // shadow table has exactly one row per *indexed* document, so its count
+    // is the real index size. Only the two text-bearing messages (the plain
+    // "morning!" and the captioned photo batch) should be there — the four
+    // attachment-only (NULL content) messages must be excluded.
+    let indexed: i64 = conn
+        .query_row("SELECT count(*) FROM messages_fts_docsize", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(indexed, 2);
+
+    // And each text-bearing message really is matchable by its own words,
+    // including the caption on the attachment message.
+    for term in ["morning", "check"] {
+        let matches: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM messages_fts WHERE messages_fts MATCH ?1",
+                [term],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(matches, 1, "expected exactly one message matching '{term}'");
+    }
+}
+
+#[test]
+fn re_importing_a_conversation_does_not_duplicate_its_attachments() {
+    let export = tempdir().unwrap();
+    let db_dir = tempdir().unwrap();
+    write_file(
+        &export
+            .path()
+            .join("messages")
+            .join("inbox")
+            .join("alice_attachments")
+            .join("message_1.json"),
+        CONVERSATION_WITH_ATTACHMENTS,
+    );
+
+    let mut conn = open_db(db_dir.path());
+    import_export(&mut conn, export.path()).unwrap();
+    import_export(&mut conn, export.path()).unwrap();
+
+    // Re-import skips duplicate messages, so their attachments — which are
+    // only inserted for a newly-inserted message — must not be doubled.
+    let (message_count, attachment_count): (i64, i64) = conn
+        .query_row(
+            "SELECT (SELECT count(*) FROM messages), \
+                    (SELECT count(*) FROM attachments)",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(message_count, 6);
+    assert_eq!(attachment_count, 6);
+}
+
+#[test]
+fn keeps_same_millisecond_attachment_messages_of_different_sizes_separate() {
+    // Two photo-only messages from the same sender in the same millisecond
+    // that differ only in how many photos they carry. They share content
+    // (NULL) and type ('photos'); only attachment_count tells them apart, so
+    // this pins that attachment_count is part of the dedup key end-to-end.
+    let export = tempdir().unwrap();
+    let db_dir = tempdir().unwrap();
+    write_file(
+        &export
+            .path()
+            .join("messages")
+            .join("inbox")
+            .join("batch_convo")
+            .join("message_1.json"),
+        r#"{
+            "participants": [{"name": "Alice"}],
+            "messages": [
+                {
+                    "sender_name": "Alice",
+                    "timestamp_ms": 1000,
+                    "photos": [{"uri": "photos/1.jpg"}]
+                },
+                {
+                    "sender_name": "Alice",
+                    "timestamp_ms": 1000,
+                    "photos": [{"uri": "photos/2.jpg"}, {"uri": "photos/3.jpg"}]
+                }
+            ],
+            "title": "Alice",
+            "is_still_participant": true,
+            "thread_path": "inbox/batch_convo"
+        }"#,
+    );
+
+    let mut conn = open_db(db_dir.path());
+    import_export(&mut conn, export.path()).unwrap();
+
+    let message_count: i64 = conn
+        .query_row("SELECT count(*) FROM messages", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(
+        message_count, 2,
+        "same-millisecond photo batches of different sizes are distinct messages"
+    );
+}
+
+#[test]
+fn a_stray_file_directly_in_the_inbox_is_skipped_not_treated_as_a_conversation() {
+    // Real exports sometimes drop loose files into messages/inbox (a
+    // .DS_Store, an autogenerated index, etc.). The scan only treats
+    // directories as conversations, so such a file must be ignored rather
+    // than derailing the import of the real conversation beside it.
+    let export = tempdir().unwrap();
+    let db_dir = tempdir().unwrap();
+    let inbox = export.path().join("messages").join("inbox");
+
+    write_file(&inbox.join(".DS_Store"), "not a conversation");
+    write_file(
+        &inbox.join("real_convo").join("message_1.json"),
+        r#"{
+            "participants": [{"name": "Alice"}],
+            "messages": [
+                {"sender_name": "Alice", "timestamp_ms": 1000, "content": "hi"}
+            ],
+            "title": "Alice",
+            "is_still_participant": true,
+            "thread_path": "inbox/real_convo"
+        }"#,
+    );
+
+    let mut conn = open_db(db_dir.path());
+    import_export(&mut conn, export.path()).unwrap();
+
+    let conversation_count: i64 = conn
+        .query_row("SELECT count(*) FROM conversations", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(
+        conversation_count, 1,
+        "the loose file should be skipped, leaving only the real conversation"
+    );
+}
+
+/// Makes `dir` unreadable and returns a guard that restores its permissions
+/// on drop, so the tempdir can still be cleaned up if an assertion panics.
+#[cfg(unix)]
+fn make_unreadable(dir: &Path) -> impl Drop + '_ {
+    use std::os::unix::fs::PermissionsExt;
+
+    struct RestorePermissions<'a>(&'a Path);
+    impl Drop for RestorePermissions<'_> {
+        fn drop(&mut self) {
+            let _ = fs::set_permissions(self.0, fs::Permissions::from_mode(0o755));
+        }
+    }
+
+    fs::set_permissions(dir, fs::Permissions::from_mode(0o000)).unwrap();
+    RestorePermissions(dir)
+}
+
+#[cfg(unix)]
+#[test]
+fn an_unreadable_conversation_folder_surfaces_as_an_import_error() {
+    // A conversation directory whose contents can't be listed (e.g. a
+    // permissions problem in the export) should fail the import with the
+    // underlying I/O error rather than being silently treated as empty.
+    let export = tempdir().unwrap();
+    let db_dir = tempdir().unwrap();
+    let locked = export
+        .path()
+        .join("messages")
+        .join("inbox")
+        .join("locked_convo");
+    fs::create_dir_all(&locked).unwrap();
+    let _guard = make_unreadable(&locked);
+    if fs::read_dir(&locked).is_ok() {
+        // Running as root, where mode 000 is still readable; the scenario
+        // can't be constructed, so there's nothing to test.
+        return;
+    }
+
+    let mut conn = open_db(db_dir.path());
+    let result = import_export(&mut conn, export.path());
+
+    assert!(
+        result.is_err(),
+        "an unreadable conversation folder should fail the import, not be \
+         mistaken for an empty conversation"
+    );
+}
+
 #[test]
 fn a_malformed_conversation_file_fails_the_whole_import_but_leaves_earlier_conversations_committed()
 {
