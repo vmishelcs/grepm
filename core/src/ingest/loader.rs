@@ -21,7 +21,8 @@ pub fn load_conversation(
         let conversation_id = db::upsert_conversation(&tx, &raw_file)?;
 
         for raw_participant in &raw_file.participants {
-            let participant_id = db::insert_participant(&tx, &raw_participant.name)?;
+            let participant_id =
+                db::insert_participant(&tx, conversation_id, &raw_participant.name)?;
             db::link_conversation_participant(&tx, conversation_id, participant_id)?;
         }
 
@@ -34,8 +35,11 @@ pub fn load_conversation(
 }
 
 /// Loads a conversation's messages, resolving each message's sender name to
-/// a participant id along the way. Duplicate messages (per the `messages`
-/// table's UNIQUE constraint) are silently skipped.
+/// a participant id (scoped to this conversation, see
+/// [`db::insert_participant`]) along the way, and linking that participant
+/// to the conversation in case they weren't already in a `participants`
+/// list. Duplicate messages (per the `messages` table's UNIQUE constraint)
+/// are silently skipped.
 pub fn load_messages(
     conn: &Connection,
     conversation_id: i64,
@@ -43,7 +47,11 @@ pub fn load_messages(
 ) -> rusqlite::Result<()> {
     for message in messages {
         let sender_id = match &message.sender_name {
-            Some(name) => Some(db::insert_participant(conn, name)?),
+            Some(name) => {
+                let participant_id = db::insert_participant(conn, conversation_id, name)?;
+                db::link_conversation_participant(conn, conversation_id, participant_id)?;
+                Some(participant_id)
+            }
             None => None,
         };
         db::insert_message(conn, conversation_id, sender_id, message)?;
@@ -102,6 +110,44 @@ mod tests {
         "thread_path": "inbox/alice_and_bob"
     }"#;
 
+    // A different conversation that happens to also have a participant
+    // named "Alice" — a different real person, not the same "Alice" as
+    // MESSAGE_1/MESSAGE_2.
+    const MESSAGE_OTHER_CONVERSATION: &str = r#"{
+        "participants": [{"name": "Alice"}, {"name": "Carol"}],
+        "messages": [
+            {"sender_name": "Alice", "timestamp_ms": 4000, "content": "hey"}
+        ],
+        "title": "Alice and Carol",
+        "is_still_participant": true,
+        "thread_path": "inbox/alice_and_carol"
+    }"#;
+
+    // Facebook replaces a deleted account's name with the placeholder
+    // "Facebook User" in both the title and the participants list, so two
+    // conversations with two different deleted-account counterparts end up
+    // with an identical title and participant name, differing only by
+    // thread_path (derived from the export's per-conversation numeric id).
+    const MESSAGE_DELETED_ACCOUNT_1: &str = r#"{
+        "participants": [{"name": "Facebook User"}],
+        "messages": [
+            {"sender_name": "Facebook User", "timestamp_ms": 5000, "content": "hey"}
+        ],
+        "title": "Facebook User",
+        "is_still_participant": false,
+        "thread_path": "inbox/facebookuser_1122334455"
+    }"#;
+
+    const MESSAGE_DELETED_ACCOUNT_2: &str = r#"{
+        "participants": [{"name": "Facebook User"}],
+        "messages": [
+            {"sender_name": "Facebook User", "timestamp_ms": 6000, "content": "hi"}
+        ],
+        "title": "Facebook User",
+        "is_still_participant": false,
+        "thread_path": "inbox/facebookuser_6677889900"
+    }"#;
+
     #[test]
     fn load_conversation_inserts_the_conversation_row() {
         let export = tempdir().unwrap();
@@ -152,6 +198,104 @@ mod tests {
             )
             .unwrap();
         assert_eq!(link_count, 2);
+    }
+
+    #[test]
+    fn load_conversation_does_not_merge_same_named_participants_across_conversations() {
+        let export = tempdir().unwrap();
+
+        let folder_1 = export.path().join("conv_1");
+        let message_1 = folder_1.join("message_1.json");
+        write_file(&message_1, MESSAGE_1);
+
+        let folder_2 = export.path().join("conv_2");
+        let message_2 = folder_2.join("message_1.json");
+        write_file(&message_2, MESSAGE_OTHER_CONVERSATION);
+
+        let mut conn = migrated_connection();
+        load_conversation(&mut conn, &conversation_dir(folder_1, vec![message_1])).unwrap();
+        load_conversation(&mut conn, &conversation_dir(folder_2, vec![message_2])).unwrap();
+
+        let alice_count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM participants WHERE name = 'Alice'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            alice_count, 2,
+            "two different conversations' same-named participants should get separate rows"
+        );
+    }
+
+    #[test]
+    fn load_conversation_keeps_same_titled_deleted_account_conversations_separate() {
+        let export = tempdir().unwrap();
+
+        let folder_1 = export.path().join("facebookuser_1122334455");
+        let message_1 = folder_1.join("message_1.json");
+        write_file(&message_1, MESSAGE_DELETED_ACCOUNT_1);
+
+        let folder_2 = export.path().join("facebookuser_6677889900");
+        let message_2 = folder_2.join("message_1.json");
+        write_file(&message_2, MESSAGE_DELETED_ACCOUNT_2);
+
+        let mut conn = migrated_connection();
+        load_conversation(&mut conn, &conversation_dir(folder_1, vec![message_1])).unwrap();
+        load_conversation(&mut conn, &conversation_dir(folder_2, vec![message_2])).unwrap();
+
+        let conversation_count: i64 = conn
+            .query_row("SELECT count(*) FROM conversations", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(
+            conversation_count, 2,
+            "same-titled conversations with different thread_path should stay separate"
+        );
+
+        let participant_count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM participants WHERE name = 'Facebook User'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            participant_count, 2,
+            "each conversation's 'Facebook User' participant should be a separate row"
+        );
+
+        let message_counts: Vec<i64> = conn
+            .prepare("SELECT message_count FROM conversations ORDER BY thread_path")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(message_counts, vec![1, 1]);
+
+        let total_messages: i64 = conn
+            .query_row("SELECT count(*) FROM messages", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(total_messages, 2);
+
+        let misattributed_senders: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM messages m \
+                 WHERE NOT EXISTS ( \
+                     SELECT 1 FROM conversation_participants cp \
+                     WHERE cp.conversation_id = m.conversation_id \
+                     AND cp.participant_id = m.sender_id \
+                 )",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            misattributed_senders, 0,
+            "each message's sender should be linked to its own conversation, not the \
+             other same-named participant"
+        );
     }
 
     #[test]

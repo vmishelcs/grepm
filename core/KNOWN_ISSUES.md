@@ -20,7 +20,7 @@ unique key (see #5) rather than the removed `raw_name` folder name.
 
 `content` is now `TEXT NOT NULL DEFAULT ''` (`src/db/schema.rs:28-35`) —
 `insert_message` stores a missing message body as `''` instead of `NULL`
-(`src/db/queries.rs:82`), so `content` can no longer take part in a
+(`src/db/queries.rs:102`), so `content` can no longer take part in a
 `NULL == NULL` mismatch.
 
 `sender_id` is still nullable (an unresolved sender is a real "no id"
@@ -32,23 +32,37 @@ SQLite doesn't allow expressions in an inline table-level `UNIQUE`
 constraint (only in a `CREATE INDEX`), which is why this one constraint
 couldn't stay inline like the rest of the schema.
 
-### 3. Participants are deduped globally by exact name match
+### 3. ~~Participants are deduped globally by exact name match~~ (fixed)
 
-`participants.name` is `UNIQUE` (`src/db/schema.rs:17`), and
-`insert_participant` (`src/db/queries.rs:39-47`) upserts on that name.
-Facebook's export format gives no stable per-person ID, only a display
-name, so this is the only signal available — but it means two different
-real people who happen to share a display name (not unusual: "John
-Smith" across unrelated threads) will silently be merged into a single
-`participants` row. There's no way to detect or undo this from the export
-data alone; worth deciding whether that's an acceptable tradeoff for a
-personal search tool or whether participants need to be scoped per
-conversation instead of deduped globally.
+`participants.name` is no longer globally `UNIQUE` (`src/db/schema.rs:17`).
+`insert_participant` (`src/db/queries.rs:32-67`) now finds-or-creates a
+participant scoped to a single `conversation_id`: it looks for an
+existing participant with that name already linked to the conversation
+via `conversation_participants`, and only inserts a new row if none is
+found. Two different real people who happen to share a display name in
+unrelated conversations (e.g. "John Smith") now get separate
+`participants` rows instead of being merged.
+
+`load_messages` (`src/ingest/loader.rs:43-61`) also links a message's
+resolved sender to the conversation, not just the file's `participants`
+list — otherwise a sender who (for whatever reason) isn't in that list
+would never be found as "already linked" and would get a fresh
+`participants` row inserted for every single message they sent.
+
+Trade-off: a person who's actually the same across several conversations
+now gets a separate `participants` row per conversation, so there's no
+built-in way to query "all messages from Bob" across conversations
+without additional reconciliation logic. This was already unreliable
+under global name-based dedup (no stable per-person id exists in the
+export), so it's a deliberate trade for correctness within a
+conversation. Two participants sharing the exact same name *within one
+conversation* remain indistinguishable — that's a limitation of the
+source data, not something this fix (or a fix at all) can address.
 
 ### 4. ~~Participants that only appear in a later file never get linked~~ (fixed)
 
 `load_conversation` now inserts and links every file's `participants`
-list (`src/ingest/loader.rs:23-26`), not just the first file's, so
+list (`src/ingest/loader.rs:23-27`), not just the first file's, so
 someone who only appears in a later page's `participants` list (and
 never sends a message) still gets linked via
 `conversation_participants`.

@@ -14,7 +14,7 @@ pub const MIGRATIONS: &[&str] = &[r#"
 
     CREATE TABLE IF NOT EXISTS participants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE
+        name TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS conversation_participants (

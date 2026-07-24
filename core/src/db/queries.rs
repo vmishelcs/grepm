@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::ingest::parse::{RawConversationFile, RawMessage};
 
@@ -29,18 +29,38 @@ pub fn upsert_conversation(
     )
 }
 
-/// Inserts a participant, or, if `name` already has a row (see the
-/// `participants` table's UNIQUE constraint), leaves it untouched, so
-/// importing the same person across many conversations doesn't create
-/// duplicate rows. Returns the participant's id either way. The `DO
-/// UPDATE` is a no-op (it just reassigns the same name) rather than `DO
-/// NOTHING`, since SQLite's `RETURNING` doesn't produce a row for a
-/// `DO NOTHING` conflict.
-pub fn insert_participant(conn: &Connection, name: &str) -> rusqlite::Result<i64> {
+/// Finds or creates a participant named `name` scoped to `conversation_id`:
+/// if a participant with that name is already linked to this conversation
+/// (via `conversation_participants`), returns its id; otherwise inserts a
+/// new participant row and returns the new id.
+///
+/// Participants are deliberately *not* deduped globally by name — Facebook's
+/// export gives no stable per-person id, only a display name, and two
+/// different real people can share one (e.g. "John Smith" in unrelated
+/// conversations). Scoping the lookup to a single conversation avoids
+/// merging them, at the cost of a person who's in several conversations
+/// getting a separate `participants` row in each.
+pub fn insert_participant(
+    conn: &Connection,
+    conversation_id: i64,
+    name: &str,
+) -> rusqlite::Result<i64> {
+    let existing_id: Option<i64> = conn
+        .query_row(
+            "SELECT p.id FROM participants p \
+             JOIN conversation_participants cp ON cp.participant_id = p.id \
+             WHERE cp.conversation_id = ?1 AND p.name = ?2",
+            params![conversation_id, name],
+            |row| row.get(0),
+        )
+        .optional()?;
+
+    if let Some(id) = existing_id {
+        return Ok(id);
+    }
+
     conn.query_row(
-        "INSERT INTO participants (name) VALUES (?1) \
-         ON CONFLICT (name) DO UPDATE SET name = excluded.name \
-         RETURNING id",
+        "INSERT INTO participants (name) VALUES (?1) RETURNING id",
         params![name],
         |row| row.get(0),
     )
