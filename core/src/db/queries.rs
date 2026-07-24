@@ -2,27 +2,24 @@ use rusqlite::{params, Connection};
 
 use crate::ingest::parse::{RawConversationFile, RawMessage};
 
-/// Inserts a conversation, or, if `raw_name` already has a row (e.g. a
-/// conversation split across multiple `message_N.json` files), updates its
-/// title/is_still_participant/thread_path and adds this file's message
-/// count onto the running total. Returns the conversation's id either way.
+/// Inserts a conversation, or, if a row with the same `title`/`thread_path`
+/// already exists (e.g. a conversation split across multiple
+/// `message_N.json` files), updates its is_still_participant and adds this
+/// file's message count onto the running total. Returns the conversation's
+/// id either way.
 pub fn upsert_conversation(
     conn: &Connection,
-    raw_name: &str,
     conversation: &RawConversationFile,
 ) -> rusqlite::Result<i64> {
     let message_count = conversation.messages.len() as i64;
     conn.query_row(
-        "INSERT INTO conversations (raw_name, title, is_still_participant, thread_path, message_count) \
-         VALUES (?1, ?2, ?3, ?4, ?5) \
-         ON CONFLICT (raw_name) DO UPDATE SET \
-             title = excluded.title, \
+        "INSERT INTO conversations (title, is_still_participant, thread_path, message_count) \
+         VALUES (?1, ?2, ?3, ?4) \
+         ON CONFLICT (title, thread_path) DO UPDATE SET \
              is_still_participant = excluded.is_still_participant, \
-             thread_path = excluded.thread_path, \
              message_count = message_count + excluded.message_count \
          RETURNING id",
         params![
-            raw_name,
             conversation.title,
             conversation.is_still_participant,
             conversation.thread_path,

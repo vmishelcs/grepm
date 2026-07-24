@@ -6,28 +6,25 @@ use crate::db;
 use crate::ingest::parse::{parse_conversation_file, RawMessage};
 use crate::ingest::scan::ConversationDir;
 
-/// Loads a single conversation into the database: inserts the thread
-/// (`conversations` row), its participants, and every message file's
-/// messages, all within one transaction.
+/// Loads a single conversation into the database: for every message file,
+/// upserts the thread (`conversations` row), inserts and links its
+/// participants, and loads its messages, all within one transaction.
 pub fn load_conversation(
     conn: &mut Connection,
     conversation_dir: &ConversationDir,
 ) -> Result<(), Box<dyn Error>> {
-    let first_file = parse_conversation_file(&conversation_dir.message_files[0])?;
-
     let tx = conn.transaction()?;
 
-    let conversation_id = db::upsert_conversation(&tx, &conversation_dir.raw_name, &first_file)?;
-
-    for raw_participant in &first_file.participants {
-        let participant_id = db::insert_participant(&tx, &raw_participant.name)?;
-        db::link_conversation_participant(&tx, conversation_id, participant_id)?;
-    }
-
-    load_messages(&tx, conversation_id, &first_file.messages)?;
-
-    for message_file in &conversation_dir.message_files[1..] {
+    for message_file in &conversation_dir.message_files {
         let raw_file = parse_conversation_file(message_file)?;
+
+        let conversation_id = db::upsert_conversation(&tx, &raw_file)?;
+
+        for raw_participant in &raw_file.participants {
+            let participant_id = db::insert_participant(&tx, &raw_participant.name)?;
+            db::link_conversation_participant(&tx, conversation_id, participant_id)?;
+        }
+
         load_messages(&tx, conversation_id, &raw_file.messages)?;
     }
 
@@ -79,7 +76,6 @@ mod tests {
 
     fn conversation_dir(folder: PathBuf, message_files: Vec<PathBuf>) -> ConversationDir {
         ConversationDir {
-            raw_name: folder.file_name().unwrap().to_string_lossy().into_owned(),
             folder,
             message_files,
         }
@@ -116,20 +112,18 @@ mod tests {
         let mut conn = migrated_connection();
         load_conversation(&mut conn, &conversation_dir(folder, vec![message_file])).unwrap();
 
-        let (raw_name, title, is_still_participant, thread_path): (
-            String,
+        let (title, is_still_participant, thread_path): (
             Option<String>,
             Option<bool>,
             Option<String>,
         ) = conn
             .query_row(
-                "SELECT raw_name, title, is_still_participant, thread_path FROM conversations",
+                "SELECT title, is_still_participant, thread_path FROM conversations",
                 [],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
 
-        assert_eq!(raw_name, "alice_and_bob_123");
         assert_eq!(title.as_deref(), Some("Alice and Bob"));
         assert_eq!(is_still_participant, Some(true));
         assert_eq!(thread_path.as_deref(), Some("inbox/alice_and_bob"));
@@ -178,6 +172,30 @@ mod tests {
 
         let message_count: i64 = conn
             .query_row("SELECT count(*) FROM messages", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(message_count, 3);
+    }
+
+    #[test]
+    fn load_conversation_accumulates_message_count_across_files() {
+        let export = tempdir().unwrap();
+        let folder = export.path().join("conv");
+        let message_1 = folder.join("message_1.json");
+        let message_2 = folder.join("message_2.json");
+        write_file(&message_1, MESSAGE_1);
+        write_file(&message_2, MESSAGE_2);
+
+        let mut conn = migrated_connection();
+        load_conversation(
+            &mut conn,
+            &conversation_dir(folder, vec![message_1, message_2]),
+        )
+        .unwrap();
+
+        let message_count: i64 = conn
+            .query_row("SELECT message_count FROM conversations", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(message_count, 3);
     }
@@ -267,12 +285,8 @@ mod tests {
     #[test]
     fn load_messages_leaves_sender_id_null_when_sender_name_is_absent() {
         let conn = migrated_connection();
-        let conversation_id = db::upsert_conversation(
-            &conn,
-            "conv",
-            &parse_message_json(r#"{"participants": []}"#),
-        )
-        .unwrap();
+        let conversation_id =
+            db::upsert_conversation(&conn, &parse_message_json(r#"{"participants": []}"#)).unwrap();
 
         let messages = parse_message_json(
             r#"{

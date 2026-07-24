@@ -6,25 +6,21 @@ deliberate decision before this data is relied on.
 
 ## Correctness
 
-### 1. `message_count` isn't accumulated across a conversation's files
+### 1. ~~`message_count` isn't accumulated across a conversation's files~~ (fixed)
 
-`upsert_conversation` (`src/db/queries.rs:5-33`) is designed to add each
-call's message count onto the running total on conflict
-(`message_count = message_count + excluded.message_count`), specifically
-to handle a conversation split across multiple `message_N.json` files.
-
-But `load_conversation` (`src/ingest/loader.rs:12-37`) only calls
-`upsert_conversation` once, for `message_files[0]` (line 20). Every file
-after the first only goes through `load_messages` (line 29-32), which
-inserts message rows but never touches `conversations.message_count`. So
-today `message_count` always equals just the first file's message count,
-not the conversation's real total.
+`load_conversation` (`src/ingest/loader.rs:12-34`) now loops over every
+file in `conversation_dir.message_files` and calls `upsert_conversation`
+(`src/db/queries.rs:10-30`) once per file, so each file's message count
+gets added onto the running total via
+`message_count = message_count + excluded.message_count`. Files are
+matched to the same conversation row via the `(title, thread_path)`
+unique key (see #5) rather than the removed `raw_name` folder name.
 
 ### 2. ~~The messages dedup constraint doesn't catch `NULL == NULL`~~ (fixed)
 
 `content` is now `TEXT NOT NULL DEFAULT ''` (`src/db/schema.rs:28-35`) —
 `insert_message` stores a missing message body as `''` instead of `NULL`
-(`src/db/queries.rs:80`), so `content` can no longer take part in a
+(`src/db/queries.rs:82`), so `content` can no longer take part in a
 `NULL == NULL` mismatch.
 
 `sender_id` is still nullable (an unresolved sender is a real "no id"
@@ -39,7 +35,7 @@ couldn't stay inline like the rest of the schema.
 ### 3. Participants are deduped globally by exact name match
 
 `participants.name` is `UNIQUE` (`src/db/schema.rs:17`), and
-`insert_participant` (`src/db/queries.rs:42-49`) upserts on that name.
+`insert_participant` (`src/db/queries.rs:39-47`) upserts on that name.
 Facebook's export format gives no stable per-person ID, only a display
 name, so this is the only signal available — but it means two different
 real people who happen to share a display name (not unusual: "John
@@ -49,26 +45,33 @@ data alone; worth deciding whether that's an acceptable tradeoff for a
 personal search tool or whether participants need to be scoped per
 conversation instead of deduped globally.
 
-### 4. Participants that only appear in a later file never get linked
+### 4. ~~Participants that only appear in a later file never get linked~~ (fixed)
 
-In `load_conversation`, only `first_file.participants` are inserted and
-linked via `link_conversation_participant` (`src/ingest/loader.rs:22-25`).
-Files after the first are only passed to `load_messages`, which inserts a
-participant row for a message's *sender* but never calls
-`link_conversation_participant`. In the (uncommon but possible) case where
-a later page's `participants` list includes someone who isn't in the first
-file and who never sends a message in that file either, they'd never be
-linked to the conversation via `conversation_participants` at all.
+`load_conversation` now inserts and links every file's `participants`
+list (`src/ingest/loader.rs:23-26`), not just the first file's, so
+someone who only appears in a later page's `participants` list (and
+never sends a message) still gets linked via
+`conversation_participants`.
 
-### 5. Conversation metadata is unconditionally overwritten on conflict
+### 5. ~~Conversation metadata is unconditionally overwritten on conflict~~ (fixed)
 
-`upsert_conversation`'s `DO UPDATE` unconditionally sets
-`title`/`is_still_participant`/`thread_path` to whatever the incoming
-file says (`src/db/queries.rs:19-22`), with no "prefer non-null" or
-"prefer latest" merge logic. This is dormant today since only the first
-file's data ever reaches `upsert_conversation` (see #1), but if that's
-fixed by calling it per-file, a later file with an absent/null title
-could blank out a title a previous file had set.
+`conversations` no longer has a `raw_name` column; a conversation is now
+identified by `UNIQUE (title, thread_path)` (`src/db/schema.rs:6-12`), and
+`upsert_conversation` conflicts on that pair (`src/db/queries.rs:18`).
+Since `title`/`thread_path` are the conflict key rather than fields the
+`DO UPDATE` touches, they're implicitly always equal to what's already
+stored on conflict — there's no overwrite to blank them out. Only
+`is_still_participant` and `message_count` are still updated on conflict.
+
+Note this does mean two files for the same conversation must agree on
+`title` *and* `thread_path` exactly (including both being present or
+both absent) to be recognized as the same conversation — if a page ever
+reports a `title` of `None` while another reports `Some("...")` for the
+same thread, they'd be treated as two different conversations instead of
+one, and (now that #1 is fixed and every file goes through
+`upsert_conversation`) that would show up as a duplicate `conversations`
+row with a split `message_count`. Not observed in practice, but worth
+knowing if that ever comes up.
 
 ## Gaps (parsed but not persisted)
 
@@ -76,13 +79,13 @@ could blank out a title a previous file had set.
 
 `RawReaction` (`src/ingest/parse.rs:94-97`) is fully parsed off of each
 message, and the `reactions` table exists in the schema
-(`src/db/schema.rs:39-46`), but there's no `insert_reaction` query and
+(`src/db/schema.rs:45-52`), but there's no `insert_reaction` query and
 `load_messages` never does anything with `message.reactions`. Reaction
 data is silently dropped during import.
 
 ### 7. `messages_fts` is never populated during import
 
-`populate_messages_fts` (`src/db/schema.rs:84-90`) exists and is tested,
+`populate_messages_fts` (`src/db/schema.rs:90-96`) exists and is tested,
 but nothing in `ingest::loader` calls it. As it stands, after a fresh
 import the `messages_fts` table stays empty and full-text search over
 message content will return nothing until something remembers to call
@@ -92,7 +95,7 @@ message content will return nothing until something remembers to call
 
 ### 8. `migrate` doesn't roll back a failed migration
 
-`migrate` (`src/db/schema.rs:71-82`) runs `BEGIN;`, then the migration
+`migrate` (`src/db/schema.rs:77-88`) runs `BEGIN;`, then the migration
 SQL, then bumps `user_version`, then `COMMIT;`, all as separate
 `execute_batch`/`pragma_update` calls. If the migration SQL batch fails
 partway through, the `?` returns immediately — `COMMIT;` (and any

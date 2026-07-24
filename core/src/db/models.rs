@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Conversation {
     pub id: i64,
-    pub raw_name: String,
     pub title: Option<String>,
     pub is_still_participant: Option<bool>,
     pub thread_path: Option<String>,
@@ -15,7 +14,6 @@ impl Conversation {
     pub fn from_row(row: &Row) -> rusqlite::Result<Self> {
         Ok(Self {
             id: row.get("id")?,
-            raw_name: row.get("raw_name")?,
             title: row.get("title")?,
             is_still_participant: row.get("is_still_participant")?,
             thread_path: row.get("thread_path")?,

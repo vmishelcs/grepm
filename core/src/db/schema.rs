@@ -5,11 +5,11 @@ use rusqlite::Connection;
 pub const MIGRATIONS: &[&str] = &[r#"
     CREATE TABLE IF NOT EXISTS conversations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        raw_name TEXT NOT NULL UNIQUE,
         title TEXT,
         is_still_participant INTEGER,
         thread_path TEXT,
-        message_count INTEGER NOT NULL DEFAULT 0
+        message_count INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (title, thread_path)
     );
 
     CREATE TABLE IF NOT EXISTS participants (
@@ -125,7 +125,8 @@ mod tests {
 
     fn seed_conversation_and_participant(conn: &Connection) -> (i64, i64) {
         conn.execute(
-            "INSERT INTO conversations (raw_name, is_still_participant) VALUES ('test', 1)",
+            "INSERT INTO conversations (title, thread_path, is_still_participant) \
+             VALUES ('test', 'inbox/test', 1)",
             [],
         )
         .unwrap();
