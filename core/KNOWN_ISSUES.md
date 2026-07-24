@@ -20,30 +20,21 @@ inserts message rows but never touches `conversations.message_count`. So
 today `message_count` always equals just the first file's message count,
 not the conversation's real total.
 
-### 2. The messages dedup constraint doesn't catch `NULL == NULL`
+### 2. ~~The messages dedup constraint doesn't catch `NULL == NULL`~~ (fixed)
 
-`messages` has `UNIQUE (conversation_id, sender_id, timestamp_ms, content)`
-(`src/db/schema.rs:36`), and both `sender_id` and `content` are nullable.
-SQLite (like standard SQL) treats `NULL` as distinct from `NULL` in a
-UNIQUE index, so two messages with the same `conversation_id`/
-`timestamp_ms` where both also have `sender_id IS NULL` and/or
-`content IS NULL` won't be recognized as duplicates and will both be
-inserted. This mainly matters on re-import (e.g. re-running the importer
-over the same export) — a message with no text (e.g. a reaction-only or
-attachment-only message with `content: null`) or an unresolved sender
-could get duplicated.
+`content` is now `TEXT NOT NULL DEFAULT ''` (`src/db/schema.rs:28-35`) —
+`insert_message` stores a missing message body as `''` instead of `NULL`
+(`src/db/queries.rs:80`), so `content` can no longer take part in a
+`NULL == NULL` mismatch.
 
-A fix would need an expression index using `COALESCE` to give NULLs a
-comparable sentinel value, e.g.:
-
-```sql
-CREATE UNIQUE INDEX idx_messages_dedup ON messages (
-    conversation_id,
-    COALESCE(sender_id, -1),
-    timestamp_ms,
-    COALESCE(content, '')
-);
-```
+`sender_id` is still nullable (an unresolved sender is a real "no id"
+case, not something to default away), so the dedup constraint moved out
+of the `messages` table definition into a standalone
+`CREATE UNIQUE INDEX idx_messages_dedup` (`src/db/schema.rs:37-42`) that
+compares `COALESCE(sender_id, -1)` instead of `sender_id` directly.
+SQLite doesn't allow expressions in an inline table-level `UNIQUE`
+constraint (only in a `CREATE INDEX`), which is why this one constraint
+couldn't stay inline like the rest of the schema.
 
 ### 3. Participants are deduped globally by exact name match
 

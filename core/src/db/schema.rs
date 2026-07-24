@@ -30,10 +30,16 @@ pub const MIGRATIONS: &[&str] = &[r#"
         conversation_id INTEGER NOT NULL,
         sender_id INTEGER,
         timestamp_ms INTEGER NOT NULL,
-        content TEXT,
+        content TEXT NOT NULL DEFAULT '',
         FOREIGN KEY (conversation_id) REFERENCES conversations (id),
-        FOREIGN KEY (sender_id) REFERENCES participants (id),
-        UNIQUE (conversation_id, sender_id, timestamp_ms, content)
+        FOREIGN KEY (sender_id) REFERENCES participants (id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_dedup ON messages (
+        conversation_id,
+        COALESCE(sender_id, -1),
+        timestamp_ms,
+        content
     );
 
     CREATE TABLE IF NOT EXISTS reactions (
@@ -84,7 +90,7 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
 pub fn populate_messages_fts(conn: &Connection) -> rusqlite::Result<usize> {
     conn.execute(
         "INSERT INTO messages_fts(rowid, content) \
-         SELECT id, content FROM messages WHERE content IS NOT NULL",
+         SELECT id, content FROM messages WHERE content != ''",
         [],
     )
 }
@@ -264,6 +270,31 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_messages_with_null_sender_id_are_rejected() {
+        let conn = migrated_connection();
+        let (conversation_id, _) = seed_conversation_and_participant(&conn);
+
+        conn.execute(
+            "INSERT INTO messages (conversation_id, timestamp_ms, content) \
+             VALUES (?1, 0, 'hello')",
+            rusqlite::params![conversation_id],
+        )
+        .unwrap();
+
+        let result = conn.execute(
+            "INSERT INTO messages (conversation_id, timestamp_ms, content) \
+             VALUES (?1, 0, 'hello')",
+            rusqlite::params![conversation_id],
+        );
+
+        assert!(
+            result.is_err(),
+            "two messages with the same conversation_id/timestamp_ms/content \
+             and a NULL sender_id should be recognized as duplicates"
+        );
+    }
+
+    #[test]
     fn messages_differing_only_in_content_are_not_duplicates() {
         let conn = migrated_connection();
         let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
@@ -334,13 +365,13 @@ mod tests {
     }
 
     #[test]
-    fn populate_messages_fts_skips_null_content() {
+    fn populate_messages_fts_skips_empty_content() {
         let conn = migrated_connection();
         let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
         conn.execute(
             "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
-             VALUES (?1, ?2, 0, NULL)",
+             VALUES (?1, ?2, 0, '')",
             rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();

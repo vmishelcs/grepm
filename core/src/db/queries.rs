@@ -63,9 +63,12 @@ pub fn link_conversation_participant(
 }
 
 /// Inserts a message, ignoring it if a message with the same
-/// conversation_id, sender_id, timestamp_ms, and content already
-/// exists (see the `messages` table's UNIQUE constraint). Returns the new
-/// row's id, or `None` if the insert was ignored as a duplicate.
+/// conversation_id, sender_id, timestamp_ms, and content already exists (see
+/// the `idx_messages_dedup` unique index). Returns the new row's id, or
+/// `None` if the insert was ignored as a duplicate.
+///
+/// A missing `content` is stored as `''` rather than `NULL`, so the dedup
+/// index can compare it directly without a `COALESCE`.
 pub fn insert_message(
     conn: &Connection,
     conversation_id: i64,
@@ -79,7 +82,7 @@ pub fn insert_message(
             conversation_id,
             sender_id,
             message.timestamp_ms,
-            message.content,
+            message.content.as_deref().unwrap_or(""),
         ],
     )?;
     Ok(if conn.changes() == 0 {
