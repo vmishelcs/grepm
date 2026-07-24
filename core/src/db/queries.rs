@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::ingest::parse::{RawConversationFile, RawMessage};
+use crate::ingest::parse::{MessageType, RawConversationFile, RawMessage};
 use crate::Result;
 
 /// Inserts a conversation, or, if a row with the same `title`/`thread_path`
@@ -74,12 +74,16 @@ pub fn link_conversation_participant(
 }
 
 /// Inserts a message, ignoring it if a message with the same
-/// conversation_id, sender_id, timestamp_ms, and content already exists (see
-/// the `idx_messages_dedup` unique index). Returns the new row's id, or
-/// `None` if the insert was ignored as a duplicate.
+/// conversation_id, sender_id, timestamp_ms, content, type, and
+/// attachment_count already exists (see the `idx_messages_dedup` unique
+/// index). Returns the new row's id, or `None` if the insert was ignored as
+/// a duplicate.
 ///
-/// A missing `content` is stored as `''` rather than `NULL`, so the dedup
-/// index can compare it directly without a `COALESCE`.
+/// A missing `content` is stored as `NULL` (the dedup index compares it via
+/// `COALESCE(content, '')`, since NULLs are distinct in a UNIQUE index).
+/// The message's type and attachment count are derived from its attachment
+/// lists (see [`RawMessage::message_type`] and
+/// [`RawMessage::attachment_count`]).
 pub fn insert_message(
     conn: &Connection,
     conversation_id: i64,
@@ -87,13 +91,16 @@ pub fn insert_message(
     message: &RawMessage,
 ) -> Result<Option<i64>> {
     conn.execute(
-        "INSERT OR IGNORE INTO messages (conversation_id, sender_id, timestamp_ms, content) \
-         VALUES (?1, ?2, ?3, ?4)",
+        "INSERT OR IGNORE INTO messages \
+         (conversation_id, sender_id, timestamp_ms, content, type, attachment_count) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             conversation_id,
             sender_id,
             message.timestamp_ms,
-            message.content.as_deref().unwrap_or(""),
+            message.content.as_deref(),
+            message.message_type().as_str(),
+            message.attachment_count(),
         ],
     )?;
     Ok(if conn.changes() == 0 {
@@ -101,4 +108,35 @@ pub fn insert_message(
     } else {
         Some(conn.last_insert_rowid())
     })
+}
+
+/// Inserts one `attachments` row per entry in `message`'s attachment lists,
+/// tagged with the list it came from (`photos`/`videos`/`audio_files`/
+/// `gifs`). Callers should only invoke this for a *newly inserted* message
+/// (a `Some` id from [`insert_message`]) — a duplicate message's attachments
+/// are already in the database, and re-inserting them would double them up.
+pub fn insert_attachments(conn: &Connection, message_id: i64, message: &RawMessage) -> Result<()> {
+    let lists = [
+        (MessageType::Photos, &message.photos),
+        (MessageType::Videos, &message.videos),
+        (MessageType::AudioFiles, &message.audio_files),
+        (MessageType::Gifs, &message.gifs),
+    ];
+
+    for (kind, attachments) in lists {
+        for attachment in attachments {
+            conn.execute(
+                "INSERT INTO attachments (message_id, type, uri, creation_timestamp) \
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    message_id,
+                    kind.as_str(),
+                    attachment.uri.as_deref(),
+                    attachment.creation_timestamp,
+                ],
+            )?;
+        }
+    }
+
+    Ok(())
 }

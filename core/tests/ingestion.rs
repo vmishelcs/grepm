@@ -270,7 +270,7 @@ fn repairs_mojibake_content_and_makes_it_diacritic_insensitively_searchable() {
         .unwrap();
     assert_eq!(repaired_content, "let's grab café");
 
-    let content_for_null_message: String = conn
+    let content_for_null_message: Option<String> = conn
         .query_row(
             "SELECT content FROM messages WHERE timestamp_ms = 2000",
             [],
@@ -278,8 +278,8 @@ fn repairs_mojibake_content_and_makes_it_diacritic_insensitively_searchable() {
         )
         .unwrap();
     assert_eq!(
-        content_for_null_message, "",
-        "a null content field should be stored as '' rather than NULL"
+        content_for_null_message, None,
+        "a null content field should be stored as NULL"
     );
 
     // A plain SELECT (no MATCH) against an external-content FTS5 table reads

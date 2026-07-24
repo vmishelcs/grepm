@@ -35,7 +35,8 @@ pub fn load_conversation(conn: &mut Connection, conversation_dir: &ConversationD
 /// [`queries::insert_participant`]) along the way, and linking that participant
 /// to the conversation in case they weren't already in a `participants`
 /// list. Duplicate messages (per the `messages` table's UNIQUE constraint)
-/// are silently skipped.
+/// are silently skipped, along with their attachments — a skipped message's
+/// attachments were already persisted the first time around.
 pub fn load_messages(
     conn: &Connection,
     conversation_id: i64,
@@ -50,7 +51,11 @@ pub fn load_messages(
             }
             None => None,
         };
-        queries::insert_message(conn, conversation_id, sender_id, message)?;
+        if let Some(message_id) =
+            queries::insert_message(conn, conversation_id, sender_id, message)?
+        {
+            queries::insert_attachments(conn, message_id, message)?;
+        }
     }
 
     Ok(())
@@ -384,6 +389,188 @@ mod tests {
             )
             .unwrap();
         assert_eq!(sender_name, "Alice");
+    }
+
+    #[test]
+    fn load_conversation_stores_the_message_type_classified_for_each_message() {
+        let export = tempdir().unwrap();
+        let folder = export.path().join("conv");
+        let message_file = folder.join("message_1.json");
+        write_file(
+            &message_file,
+            r#"{
+                "participants": [{"name": "Alice"}],
+                "messages": [
+                    {"sender_name": "Alice", "timestamp_ms": 1000, "content": "hi"},
+                    {
+                        "sender_name": "Alice",
+                        "timestamp_ms": 2000,
+                        "photos": [{"uri": "photos/1.jpg"}]
+                    },
+                    {
+                        "sender_name": "Alice",
+                        "timestamp_ms": 3000,
+                        "audio_files": [{"uri": "audio/1.aac"}]
+                    }
+                ],
+                "title": "Alice",
+                "is_still_participant": true,
+                "thread_path": "inbox/conv"
+            }"#,
+        );
+
+        let mut conn = migrated_connection();
+        load_conversation(&mut conn, &conversation_dir(folder, vec![message_file])).unwrap();
+
+        let types: Vec<String> = conn
+            .prepare("SELECT type FROM messages ORDER BY timestamp_ms")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(types, vec!["text", "photos", "audio_files"]);
+    }
+
+    // Two photos and one gif across two messages; the gif entry has no
+    // creation_timestamp, matching how real exports shape gifs.
+    const MESSAGE_WITH_ATTACHMENTS: &str = r#"{
+        "participants": [{"name": "Alice"}],
+        "messages": [
+            {
+                "sender_name": "Alice",
+                "timestamp_ms": 1000,
+                "content": "vacation pics",
+                "photos": [
+                    {"uri": "photos/1.jpg", "creation_timestamp": 1712345678},
+                    {"uri": "photos/2.jpg", "creation_timestamp": 1712345679}
+                ]
+            },
+            {
+                "sender_name": "Alice",
+                "timestamp_ms": 2000,
+                "gifs": [{"uri": "gifs/1.gif"}]
+            }
+        ],
+        "title": "Alice",
+        "is_still_participant": true,
+        "thread_path": "inbox/conv"
+    }"#;
+
+    #[test]
+    fn load_conversation_persists_each_attachment_with_its_kind_and_metadata() {
+        let export = tempdir().unwrap();
+        let folder = export.path().join("conv");
+        let message_file = folder.join("message_1.json");
+        write_file(&message_file, MESSAGE_WITH_ATTACHMENTS);
+
+        let mut conn = migrated_connection();
+        load_conversation(&mut conn, &conversation_dir(folder, vec![message_file])).unwrap();
+
+        let attachments: Vec<(String, Option<String>, Option<i64>)> = conn
+            .prepare(
+                "SELECT a.type, a.uri, a.creation_timestamp FROM attachments a \
+                 JOIN messages m ON m.id = a.message_id \
+                 ORDER BY m.timestamp_ms, a.uri",
+            )
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+
+        assert_eq!(
+            attachments,
+            vec![
+                (
+                    "photos".to_string(),
+                    Some("photos/1.jpg".to_string()),
+                    Some(1712345678)
+                ),
+                (
+                    "photos".to_string(),
+                    Some("photos/2.jpg".to_string()),
+                    Some(1712345679)
+                ),
+                ("gifs".to_string(), Some("gifs/1.gif".to_string()), None),
+            ]
+        );
+    }
+
+    #[test]
+    fn load_conversation_keeps_same_millisecond_photo_batches_of_different_sizes_separate() {
+        // Same sender, same timestamp_ms, both attachment-only photo
+        // messages — only their attachment counts differ. Before
+        // attachment_count joined the dedup key, the second batch would
+        // have been silently dropped as a duplicate.
+        let export = tempdir().unwrap();
+        let folder = export.path().join("conv");
+        let message_file = folder.join("message_1.json");
+        write_file(
+            &message_file,
+            r#"{
+                "participants": [{"name": "Alice"}],
+                "messages": [
+                    {
+                        "sender_name": "Alice",
+                        "timestamp_ms": 1000,
+                        "photos": [{"uri": "photos/1.jpg"}]
+                    },
+                    {
+                        "sender_name": "Alice",
+                        "timestamp_ms": 1000,
+                        "photos": [{"uri": "photos/2.jpg"}, {"uri": "photos/3.jpg"}]
+                    }
+                ],
+                "title": "Alice",
+                "is_still_participant": true,
+                "thread_path": "inbox/conv"
+            }"#,
+        );
+
+        let mut conn = migrated_connection();
+        let dir = conversation_dir(folder, vec![message_file]);
+        load_conversation(&mut conn, &dir).unwrap();
+
+        let message_count: i64 = conn
+            .query_row("SELECT count(*) FROM messages", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(message_count, 2);
+
+        // And a reload must still recognize both as duplicates.
+        load_conversation(&mut conn, &dir).unwrap();
+
+        let counts: (i64, i64) = conn
+            .query_row(
+                "SELECT (SELECT count(*) FROM messages), \
+                        (SELECT count(*) FROM attachments)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (2, 3));
+    }
+
+    #[test]
+    fn load_conversation_does_not_duplicate_attachments_on_reload() {
+        let export = tempdir().unwrap();
+        let folder = export.path().join("conv");
+        let message_file = folder.join("message_1.json");
+        write_file(&message_file, MESSAGE_WITH_ATTACHMENTS);
+
+        let mut conn = migrated_connection();
+        let dir = conversation_dir(folder, vec![message_file]);
+        load_conversation(&mut conn, &dir).unwrap();
+        load_conversation(&mut conn, &dir).unwrap();
+
+        let attachment_count: i64 = conn
+            .query_row("SELECT count(*) FROM attachments", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(
+            attachment_count, 3,
+            "a reload skips duplicate messages, so their attachments must \
+             not be inserted a second time"
+        );
     }
 
     #[test]

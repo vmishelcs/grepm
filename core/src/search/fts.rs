@@ -159,8 +159,9 @@ mod tests {
         content: &str,
     ) -> i64 {
         conn.query_row(
-            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
-             VALUES (?1, ?2, ?3, ?4) RETURNING id",
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, ?3, ?4, 'text') RETURNING id",
             params![conversation_id, sender_id, timestamp_ms, content],
             |row| row.get(0),
         )

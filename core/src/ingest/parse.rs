@@ -97,6 +97,81 @@ pub struct RawMessage {
     pub content: Option<String>,
     #[serde(default)]
     pub reactions: Vec<RawReaction>,
+    #[serde(default)]
+    pub photos: Vec<RawAttachment>,
+    #[serde(default)]
+    pub videos: Vec<RawAttachment>,
+    #[serde(default)]
+    pub audio_files: Vec<RawAttachment>,
+    #[serde(default)]
+    pub gifs: Vec<RawAttachment>,
+}
+
+impl RawMessage {
+    /// Classifies this message by which attachment list it carries; a
+    /// message with no attachments is plain text. An attachment list wins
+    /// over `content`, since an attachment message may also carry a text
+    /// caption.
+    pub fn message_type(&self) -> MessageType {
+        if !self.photos.is_empty() {
+            MessageType::Photos
+        } else if !self.videos.is_empty() {
+            MessageType::Videos
+        } else if !self.audio_files.is_empty() {
+            MessageType::AudioFiles
+        } else if !self.gifs.is_empty() {
+            MessageType::Gifs
+        } else {
+            MessageType::Text
+        }
+    }
+
+    /// The total number of attachments across all four lists, part of the
+    /// messages dedup key: without it, two attachment-only messages from
+    /// the same sender in the same millisecond (both `content = ''`, same
+    /// type) would be collapsed into one whenever their attachment
+    /// counts differ. `0` for a plain text message, matching the column's
+    /// `DEFAULT 0`.
+    pub fn attachment_count(&self) -> i64 {
+        (self.photos.len() + self.videos.len() + self.audio_files.len() + self.gifs.len()) as i64
+    }
+}
+
+/// The message shapes ingestion currently distinguishes, derived from which
+/// attachment list a raw message carries (see [`RawMessage::message_type`]).
+/// Stored in the `messages.type` column as the string form from
+/// [`Self::as_str`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MessageType {
+    Text,
+    Photos,
+    Videos,
+    AudioFiles,
+    Gifs,
+}
+
+impl MessageType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Photos => "photos",
+            Self::Videos => "videos",
+            Self::AudioFiles => "audio_files",
+            Self::Gifs => "gifs",
+        }
+    }
+}
+
+/// One entry in a message's attachment list. Facebook's export carries a
+/// `uri` and, for most kinds, a `creation_timestamp`; only the list's
+/// *presence* matters for classification, so both fields are optional
+/// rather than risking a whole-file parse failure over them.
+#[derive(Debug, Deserialize)]
+pub struct RawAttachment {
+    pub uri: Option<String>,
+    /// Unix timestamp in *seconds* — unlike `RawMessage::timestamp_ms`,
+    /// which is in milliseconds.
+    pub creation_timestamp: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -395,6 +470,98 @@ mod tests {
         assert_eq!(parsed.title.as_deref(), Some(repaired));
         assert_eq!(parsed.participants[0].name, repaired);
         assert_eq!(parsed.messages[0].sender_name.as_deref(), Some(repaired));
+    }
+
+    fn raw_message(json: &str) -> RawMessage {
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn message_type_is_text_when_no_attachments_are_present() {
+        let message = raw_message(r#"{"timestamp_ms": 1000, "content": "hi"}"#);
+        assert_eq!(message.message_type(), MessageType::Text);
+    }
+
+    #[test]
+    fn message_type_is_photos_for_a_message_with_a_photos_list() {
+        let message = raw_message(r#"{"timestamp_ms": 1000, "photos": [{"uri": "photos/1.jpg"}]}"#);
+        assert_eq!(message.message_type(), MessageType::Photos);
+    }
+
+    #[test]
+    fn message_type_is_videos_for_a_message_with_a_videos_list() {
+        let message = raw_message(r#"{"timestamp_ms": 1000, "videos": [{"uri": "videos/1.mp4"}]}"#);
+        assert_eq!(message.message_type(), MessageType::Videos);
+    }
+
+    #[test]
+    fn message_type_is_audio_files_for_a_message_with_an_audio_files_list() {
+        let message =
+            raw_message(r#"{"timestamp_ms": 1000, "audio_files": [{"uri": "audio/1.aac"}]}"#);
+        assert_eq!(message.message_type(), MessageType::AudioFiles);
+    }
+
+    #[test]
+    fn message_type_is_gifs_for_a_message_with_a_gifs_list() {
+        let message = raw_message(r#"{"timestamp_ms": 1000, "gifs": [{"uri": "gifs/1.gif"}]}"#);
+        assert_eq!(message.message_type(), MessageType::Gifs);
+    }
+
+    #[test]
+    fn message_type_prefers_the_attachment_list_over_caption_content() {
+        // A photo sent with a text caption is a photos message; the caption
+        // rides along in `content`.
+        let message = raw_message(
+            r#"{
+                "timestamp_ms": 1000,
+                "content": "look at this",
+                "photos": [{"uri": "photos/1.jpg"}]
+            }"#,
+        );
+        assert_eq!(message.message_type(), MessageType::Photos);
+    }
+
+    #[test]
+    fn attachment_count_is_zero_for_a_text_message() {
+        let message = raw_message(r#"{"timestamp_ms": 1000, "content": "hi"}"#);
+        assert_eq!(message.attachment_count(), 0);
+    }
+
+    #[test]
+    fn attachment_count_sums_across_all_attachment_lists() {
+        let message = raw_message(
+            r#"{
+                "timestamp_ms": 1000,
+                "photos": [{"uri": "photos/1.jpg"}, {"uri": "photos/2.jpg"}],
+                "gifs": [{"uri": "gifs/1.gif"}]
+            }"#,
+        );
+        assert_eq!(message.attachment_count(), 3);
+    }
+
+    #[test]
+    fn attachments_capture_the_creation_timestamp_when_present() {
+        let message = raw_message(
+            r#"{
+                "timestamp_ms": 1000,
+                "photos": [{"uri": "photos/1.jpg", "creation_timestamp": 1712345678}]
+            }"#,
+        );
+        assert_eq!(message.photos[0].creation_timestamp, Some(1712345678));
+    }
+
+    #[test]
+    fn attachments_treat_a_missing_creation_timestamp_as_none() {
+        let message = raw_message(r#"{"timestamp_ms": 1000, "gifs": [{"uri": "gifs/1.gif"}]}"#);
+        assert_eq!(message.gifs[0].creation_timestamp, None);
+    }
+
+    #[test]
+    fn message_type_tolerates_attachment_entries_without_a_uri() {
+        // Only the list's presence matters for classification; a stripped
+        // or unusual attachment entry shouldn't fail the parse.
+        let message = raw_message(r#"{"timestamp_ms": 1000, "photos": [{}]}"#);
+        assert_eq!(message.message_type(), MessageType::Photos);
     }
 
     #[test]

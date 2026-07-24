@@ -32,7 +32,9 @@ pub const MIGRATIONS: &[&str] = &[r#"
         conversation_id INTEGER NOT NULL,
         sender_id INTEGER,
         timestamp_ms INTEGER NOT NULL,
-        content TEXT NOT NULL DEFAULT '',
+        content TEXT,
+        type TEXT NOT NULL,
+        attachment_count INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (conversation_id) REFERENCES conversations (id),
         FOREIGN KEY (sender_id) REFERENCES participants (id)
     );
@@ -41,7 +43,18 @@ pub const MIGRATIONS: &[&str] = &[r#"
         conversation_id,
         COALESCE(sender_id, -1),
         timestamp_ms,
-        content
+        COALESCE(content, ''),
+        type,
+        attachment_count
+    );
+
+    CREATE TABLE IF NOT EXISTS attachments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        uri TEXT,
+        creation_timestamp INTEGER,
+        FOREIGN KEY (message_id) REFERENCES messages (id)
     );
 
     CREATE TABLE IF NOT EXISTS reactions (
@@ -106,7 +119,8 @@ pub fn migrate(conn: &mut Connection) -> Result<()> {
 pub fn populate_fts(conn: &Connection) -> Result<usize> {
     Ok(conn.execute(
         "INSERT INTO messages_fts(rowid, content) \
-         SELECT id, content FROM messages WHERE content != ''",
+         SELECT id, content FROM messages \
+         WHERE content IS NOT NULL AND content != ''",
         [],
     )?)
 }
@@ -162,6 +176,7 @@ mod tests {
         assert_eq!(
             table_names(&conn),
             vec![
+                "attachments",
                 "conversation_participants",
                 "conversations",
                 "messages",
@@ -308,8 +323,8 @@ mod tests {
         let conn = migrated_connection();
 
         let result = conn.execute(
-            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms) \
-             VALUES (1, 1, 0)",
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, type) \
+             VALUES (1, 1, 0, 'text')",
             [],
         );
 
@@ -325,15 +340,17 @@ mod tests {
         let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
         conn.execute(
-            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
-             VALUES (?1, ?2, 0, 'hello')",
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, 'hello', 'text')",
             rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
 
         let result = conn.execute(
-            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
-             VALUES (?1, ?2, 0, 'hello')",
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, 'hello', 'text')",
             rusqlite::params![conversation_id, sender_id],
         );
 
@@ -350,15 +367,15 @@ mod tests {
         let (conversation_id, _) = seed_conversation_and_participant(&conn);
 
         conn.execute(
-            "INSERT INTO messages (conversation_id, timestamp_ms, content) \
-             VALUES (?1, 0, 'hello')",
+            "INSERT INTO messages (conversation_id, timestamp_ms, content, type) \
+             VALUES (?1, 0, 'hello', 'text')",
             rusqlite::params![conversation_id],
         )
         .unwrap();
 
         let result = conn.execute(
-            "INSERT INTO messages (conversation_id, timestamp_ms, content) \
-             VALUES (?1, 0, 'hello')",
+            "INSERT INTO messages (conversation_id, timestamp_ms, content, type) \
+             VALUES (?1, 0, 'hello', 'text')",
             rusqlite::params![conversation_id],
         );
 
@@ -375,19 +392,144 @@ mod tests {
         let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
         conn.execute(
-            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
-             VALUES (?1, ?2, 0, 'hello')",
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, 'hello', 'text')",
             rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
 
         let result = conn.execute(
-            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
-             VALUES (?1, ?2, 0, 'goodbye')",
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, 'goodbye', 'text')",
             rusqlite::params![conversation_id, sender_id],
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn attachments_referencing_a_nonexistent_message_are_rejected() {
+        let conn = migrated_connection();
+
+        let result = conn.execute(
+            "INSERT INTO attachments (message_id, type, uri) \
+             VALUES (999, 'photos', 'photos/1.jpg')",
+            [],
+        );
+
+        assert!(
+            result.is_err(),
+            "attachments.message_id has a FOREIGN KEY to messages"
+        );
+    }
+
+    #[test]
+    fn messages_differing_only_in_message_type_are_not_duplicates() {
+        // Two attachment-only messages share content = '' — without
+        // type in the dedup index, a photo and a video sent by the
+        // same person in the same millisecond would collide.
+        let conn = migrated_connection();
+        let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
+
+        conn.execute(
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, '', 'photos')",
+            rusqlite::params![conversation_id, sender_id],
+        )
+        .unwrap();
+
+        let result = conn.execute(
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, '', 'videos')",
+            rusqlite::params![conversation_id, sender_id],
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn messages_differing_only_in_attachment_count_are_not_duplicates() {
+        // e.g. one photo vs. two photos sent by the same person in the same
+        // millisecond: same content (''), same type ('photos').
+        let conn = migrated_connection();
+        let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
+
+        conn.execute(
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type, \
+              attachment_count) \
+             VALUES (?1, ?2, 0, '', 'photos', 1)",
+            rusqlite::params![conversation_id, sender_id],
+        )
+        .unwrap();
+
+        let result = conn.execute(
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type, \
+              attachment_count) \
+             VALUES (?1, ?2, 0, '', 'photos', 2)",
+            rusqlite::params![conversation_id, sender_id],
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn messages_require_an_explicit_message_type() {
+        let conn = migrated_connection();
+        let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
+
+        let result = conn.execute(
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
+             VALUES (?1, ?2, 0, 'hello')",
+            rusqlite::params![conversation_id, sender_id],
+        );
+
+        assert!(
+            result.is_err(),
+            "type has no DEFAULT; an insert that omits it should fail"
+        );
+    }
+
+    #[test]
+    fn messages_reject_a_null_message_type() {
+        let conn = migrated_connection();
+        let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
+
+        let result = conn.execute(
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, 'hello', NULL)",
+            rusqlite::params![conversation_id, sender_id],
+        );
+
+        assert!(
+            result.is_err(),
+            "type is NOT NULL; an explicit NULL insert should fail"
+        );
+    }
+
+    #[test]
+    fn messages_store_an_explicit_message_type() {
+        let conn = migrated_connection();
+        let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
+
+        conn.execute(
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, '', 'photos')",
+            rusqlite::params![conversation_id, sender_id],
+        )
+        .unwrap();
+
+        let message_type: String = conn
+            .query_row("SELECT type FROM messages", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(message_type, "photos");
     }
 
     #[test]
@@ -396,8 +538,9 @@ mod tests {
         let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
         conn.execute(
-            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
-             VALUES (?1, ?2, 0, 'hello world')",
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, 'hello world', 'text')",
             rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
@@ -421,8 +564,9 @@ mod tests {
         let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
         conn.execute(
-            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
-             VALUES (?1, ?2, 0, 'apples and oranges')",
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, 'apples and oranges', 'text')",
             rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
@@ -445,14 +589,23 @@ mod tests {
         let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
 
         conn.execute(
-            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
-             VALUES (?1, ?2, 0, '')",
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, '', 'text')",
             rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, content) \
-             VALUES (?1, ?2, 0, 'has content')",
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, content, type) \
+             VALUES (?1, ?2, 0, 'has content', 'text')",
+            rusqlite::params![conversation_id, sender_id],
+        )
+        .unwrap();
+        // A NULL-content (e.g. attachment-only) message must be skipped too.
+        conn.execute(
+            "INSERT INTO messages (conversation_id, sender_id, timestamp_ms, type) \
+             VALUES (?1, ?2, 1, 'photos')",
             rusqlite::params![conversation_id, sender_id],
         )
         .unwrap();
@@ -464,5 +617,34 @@ mod tests {
         // reliable signal here.
         let indexed_count = populate_fts(&conn).unwrap();
         assert_eq!(indexed_count, 1);
+    }
+
+    #[test]
+    fn duplicate_messages_with_null_content_are_rejected() {
+        // NULLs are distinct in a UNIQUE index, so without the
+        // COALESCE(content, '') in idx_messages_dedup, re-importing an
+        // attachment-only (NULL content) message would duplicate it.
+        let conn = migrated_connection();
+        let (conversation_id, sender_id) = seed_conversation_and_participant(&conn);
+
+        conn.execute(
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, type, attachment_count) \
+             VALUES (?1, ?2, 0, 'photos', 1)",
+            rusqlite::params![conversation_id, sender_id],
+        )
+        .unwrap();
+
+        let result = conn.execute(
+            "INSERT INTO messages \
+             (conversation_id, sender_id, timestamp_ms, type, attachment_count) \
+             VALUES (?1, ?2, 0, 'photos', 1)",
+            rusqlite::params![conversation_id, sender_id],
+        );
+
+        assert!(
+            result.is_err(),
+            "two identical NULL-content messages should be recognized as duplicates"
+        );
     }
 }
