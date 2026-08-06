@@ -17,9 +17,7 @@ pub fn load_conversation(conn: &mut Connection, conversation_dir: &ConversationD
         let conversation_id = queries::upsert_conversation(&tx, &raw_file)?;
 
         for raw_participant in &raw_file.participants {
-            let participant_id =
-                queries::insert_participant(&tx, conversation_id, &raw_participant.name)?;
-            queries::link_conversation_participant(&tx, conversation_id, participant_id)?;
+            queries::find_or_create_participant(&tx, conversation_id, &raw_participant.name)?;
         }
 
         load_messages(&tx, conversation_id, &raw_file.messages)?;
@@ -32,25 +30,24 @@ pub fn load_conversation(conn: &mut Connection, conversation_dir: &ConversationD
 
 /// Loads a conversation's messages, resolving each message's sender name to
 /// a participant id (scoped to this conversation, see
-/// [`queries::insert_participant`]) along the way, and linking that participant
-/// to the conversation in case they weren't already in a `participants`
-/// list. Duplicate messages (per the `messages` table's UNIQUE constraint)
-/// are silently skipped, along with their attachments — a skipped message's
-/// attachments were already persisted the first time around.
+/// [`queries::find_or_create_participant`]) along the way. A sender who
+/// isn't in the file's `participants` list is created and linked like any
+/// other, so they resolve to one participant row rather than a fresh one
+/// per message. Duplicate messages (per the `messages` table's UNIQUE
+/// constraint) are silently skipped, along with their attachments — a
+/// skipped message's attachments were already persisted the first time
+/// around.
 pub fn load_messages(
     conn: &Connection,
     conversation_id: i64,
     messages: &[RawMessage],
 ) -> Result<()> {
     for message in messages {
-        let sender_id = match &message.sender_name {
-            Some(name) => {
-                let participant_id = queries::insert_participant(conn, conversation_id, name)?;
-                queries::link_conversation_participant(conn, conversation_id, participant_id)?;
-                Some(participant_id)
-            }
-            None => None,
-        };
+        let sender_id = message
+            .sender_name
+            .as_deref()
+            .map(|name| queries::find_or_create_participant(conn, conversation_id, name))
+            .transpose()?;
         if let Some(message_id) =
             queries::insert_message(conn, conversation_id, sender_id, message)?
         {
@@ -610,11 +607,48 @@ mod tests {
     }
 
     #[test]
+    fn find_or_create_participant_links_the_new_participant_to_the_conversation() {
+        let conn = migrated_connection();
+        let conversation_id = empty_conversation(&conn);
+
+        let participant_id =
+            queries::find_or_create_participant(&conn, conversation_id, "Alice").unwrap();
+
+        let links: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM conversation_participants \
+                 WHERE conversation_id = ?1 AND participant_id = ?2",
+                rusqlite::params![conversation_id, participant_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            links, 1,
+            "creating a participant must link it in the same step — the link \
+             is what the next lookup searches by"
+        );
+    }
+
+    #[test]
+    fn find_or_create_participant_returns_the_existing_id_when_called_again() {
+        let conn = migrated_connection();
+        let conversation_id = empty_conversation(&conn);
+
+        let first = queries::find_or_create_participant(&conn, conversation_id, "Alice").unwrap();
+        let second = queries::find_or_create_participant(&conn, conversation_id, "Alice").unwrap();
+
+        assert_eq!(first, second);
+
+        let participant_count: i64 = conn
+            .query_row("SELECT count(*) FROM participants", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(participant_count, 1);
+    }
+
+    #[test]
     fn load_messages_leaves_sender_id_null_when_sender_name_is_absent() {
         let conn = migrated_connection();
-        let conversation_id =
-            queries::upsert_conversation(&conn, &parse_message_json(r#"{"participants": []}"#))
-                .unwrap();
+        let conversation_id = empty_conversation(&conn);
 
         let messages = parse_message_json(
             r#"{
@@ -629,6 +663,10 @@ mod tests {
             .query_row("SELECT sender_id FROM messages", [], |row| row.get(0))
             .unwrap();
         assert_eq!(sender_id, None);
+    }
+
+    fn empty_conversation(conn: &Connection) -> i64 {
+        queries::upsert_conversation(conn, &parse_message_json(r#"{"participants": []}"#)).unwrap()
     }
 
     fn parse_message_json(json: &str) -> crate::ingest::parse::RawConversationFile {

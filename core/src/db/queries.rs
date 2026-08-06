@@ -30,7 +30,14 @@ pub fn upsert_conversation(conn: &Connection, conversation: &RawConversationFile
 /// Finds or creates a participant named `name` scoped to `conversation_id`:
 /// if a participant with that name is already linked to this conversation
 /// (via `conversation_participants`), returns its id; otherwise inserts a
-/// new participant row and returns the new id.
+/// new participant row, links it to the conversation, and returns the new
+/// id.
+///
+/// Creating and linking are deliberately one operation: membership in
+/// `conversation_participants` is *how* a participant is found, so a caller
+/// that created a participant without linking it would leave a row this
+/// function can never find again — and would then insert a fresh one for
+/// every later mention of the same name.
 ///
 /// Participants are deliberately *not* deduped globally by name — Facebook's
 /// export gives no stable per-person id, only a display name, and two
@@ -38,7 +45,11 @@ pub fn upsert_conversation(conn: &Connection, conversation: &RawConversationFile
 /// conversations). Scoping the lookup to a single conversation avoids
 /// merging them, at the cost of a person who's in several conversations
 /// getting a separate `participants` row in each.
-pub fn insert_participant(conn: &Connection, conversation_id: i64, name: &str) -> Result<i64> {
+pub fn find_or_create_participant(
+    conn: &Connection,
+    conversation_id: i64,
+    name: &str,
+) -> Result<i64> {
     let existing_id: Option<i64> = conn
         .query_row(
             "SELECT p.id FROM participants p \
@@ -53,24 +64,22 @@ pub fn insert_participant(conn: &Connection, conversation_id: i64, name: &str) -
         return Ok(id);
     }
 
-    Ok(conn.query_row(
+    let participant_id: i64 = conn.query_row(
         "INSERT INTO participants (name) VALUES (?1) RETURNING id",
         params![name],
         |row| row.get(0),
-    )?)
-}
+    )?;
 
-pub fn link_conversation_participant(
-    conn: &Connection,
-    conversation_id: i64,
-    participant_id: i64,
-) -> Result<()> {
+    // The id was just minted, so it can't already be linked to anything —
+    // a plain INSERT can't conflict here, and shouldn't be told to ignore
+    // it if it somehow does.
     conn.execute(
-        "INSERT OR IGNORE INTO conversation_participants (conversation_id, participant_id) \
+        "INSERT INTO conversation_participants (conversation_id, participant_id) \
          VALUES (?1, ?2)",
         params![conversation_id, participant_id],
     )?;
-    Ok(())
+
+    Ok(participant_id)
 }
 
 /// Inserts a message, ignoring it if a message with the same

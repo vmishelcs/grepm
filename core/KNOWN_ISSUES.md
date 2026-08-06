@@ -35,19 +35,20 @@ couldn't stay inline like the rest of the schema.
 ### 3. ~~Participants are deduped globally by exact name match~~ (fixed)
 
 `participants.name` is no longer globally `UNIQUE` (`src/db/schema.rs:17`).
-`insert_participant` (`src/db/queries.rs:32-67`) now finds-or-creates a
+`find_or_create_participant` (`src/db/queries.rs`) finds-or-creates a
 participant scoped to a single `conversation_id`: it looks for an
 existing participant with that name already linked to the conversation
 via `conversation_participants`, and only inserts a new row if none is
-found. Two different real people who happen to share a display name in
-unrelated conversations (e.g. "John Smith") now get separate
-`participants` rows instead of being merged.
+found — linking it in the same call. Two different real people who happen
+to share a display name in unrelated conversations (e.g. "John Smith")
+now get separate `participants` rows instead of being merged.
 
-`load_messages` (`src/ingest/loader.rs:43-61`) also links a message's
-resolved sender to the conversation, not just the file's `participants`
-list — otherwise a sender who (for whatever reason) isn't in that list
-would never be found as "already linked" and would get a fresh
-`participants` row inserted for every single message they sent.
+Creating and linking are one operation on purpose: the link is *how* a
+participant is found, so an unlinked participant row could never be found
+again. That matters for a message sender who (for whatever reason) isn't
+in the file's `participants` list — without the link they'd get a fresh
+`participants` row for every single message they sent. Folding the link
+into the lookup means no caller can get that pairing wrong.
 
 Trade-off: a person who's actually the same across several conversations
 now gets a separate `participants` row per conversation, so there's no
