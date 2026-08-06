@@ -9,6 +9,10 @@ resolver = "2"
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Both crates define a `thiserror` enum, and both use `tempfile` to build
+# throwaway directories in tests — same reasoning as serde above.
+thiserror = "2.0.19"
+tempfile = "3"
 
 [workspace.lints.rust]
 # Neither crate needs `unsafe`; make adding any a deliberate, visible act

@@ -17,8 +17,25 @@ import { chromium } from 'playwright';
 const ORIGIN = 'http://localhost:1420';
 const OUT_DIR = '.screenshots';
 
-/** Routes to capture. Add new ones here as the app grows. */
-const ROUTES = ['/'];
+/**
+ * Screens to capture. Add entries as the app grows.
+ *
+ * `path` is the route. The two optional fields exist because the interesting
+ * states aren't all reachable by navigation: `prepare` drives the UI into one
+ * (the naming step only appears after the folder picker returns), and
+ * `imports` overrides what `list_imports` answers, so the empty library that
+ * every user sees on first launch can be captured too.
+ */
+const SHOTS = [
+	{ name: 'launch', path: '/' },
+	{ name: 'launch-empty', path: '/', imports: [] },
+	{
+		name: 'naming',
+		path: '/',
+		prepare: (page) => page.getByRole('button', { name: 'Import Data' }).click()
+	},
+	{ name: 'opened', path: '/opened' }
+];
 
 const VIEWPORTS = [
 	{ name: 'desktop', width: 1280, height: 800 },
@@ -36,11 +53,19 @@ const VIEWPORTS = [
  */
 function installIpcStub() {
 	window.__TAURI_INTERNALS__ = window.__TAURI_INTERNALS__ ?? {};
-	window.__TAURI_INTERNALS__.invoke = async (command, args) => {
+	window.__TAURI_INTERNALS__.invoke = async (command) => {
 		const fixtures = await import('/src/lib/fixtures.ts');
 		switch (command) {
-			case 'greet':
-				return `Hello, ${args.name}! You've been greeted from Rust!`;
+			case 'list_imports':
+				return window.__GREPM_IMPORTS__ ?? fixtures.sampleImports;
+			case 'active_import':
+				return {
+					entry: fixtures.sampleImports[0],
+					stats: { message_count: 12431, conversation_count: 47 }
+				};
+			// The folder picker crosses the same bridge as any command.
+			case 'plugin:dialog|open':
+				return '/home/vm/Downloads/facebook-export';
 			case 'search':
 				return fixtures.sampleResults;
 			default:
@@ -58,20 +83,24 @@ async function serverIsUp() {
 	}
 }
 
-/** Starts `vite dev` and waits for it to answer. Returns the child process. */
+/**
+ * Starts `vite dev` and waits for it to answer. Returns the child process.
+ *
+ * Vite is launched directly rather than through `npx`, because `npx` spawns it
+ * as a *grandchild*: killing the `npx` process on the way out left the real
+ * server holding port 1420, and the next `npm run tauri dev` then failed on
+ * `strictPort` with no clue why.
+ */
 async function startServer() {
-	const child = spawn('npx', ['vite', 'dev'], { stdio: 'ignore' });
+	const child = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'dev'], {
+		stdio: 'ignore'
+	});
 	for (let attempt = 0; attempt < 60; attempt += 1) {
 		if (await serverIsUp()) return child;
 		await new Promise((resolve) => setTimeout(resolve, 500));
 	}
 	child.kill();
 	throw new Error(`vite dev never answered on ${ORIGIN}`);
-}
-
-/** `/` becomes `root`, `/search/results` becomes `search-results`. */
-function slugify(route) {
-	return route.replace(/^\/|\/$/g, '').replace(/\//g, '-') || 'root';
 }
 
 const startedServer = (await serverIsUp()) ? null : await startServer();
@@ -86,10 +115,16 @@ try {
 		});
 		await context.addInitScript(installIpcStub);
 
-		for (const route of ROUTES) {
+		for (const shot of SHOTS) {
 			const page = await context.newPage();
-			await page.goto(`${ORIGIN}${route}`, { waitUntil: 'networkidle' });
-			const path = `${OUT_DIR}/${slugify(route)}-${viewport.name}.png`;
+			if (shot.imports) {
+				await page.addInitScript((imports) => {
+					window.__GREPM_IMPORTS__ = imports;
+				}, shot.imports);
+			}
+			await page.goto(`${ORIGIN}${shot.path}`, { waitUntil: 'networkidle' });
+			await shot.prepare?.(page);
+			const path = `${OUT_DIR}/${shot.name}-${viewport.name}.png`;
 			await page.screenshot({ path, fullPage: true });
 			console.log(path);
 			await page.close();

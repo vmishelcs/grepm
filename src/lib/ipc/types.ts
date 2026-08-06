@@ -8,10 +8,65 @@
  * because serde serializes them that way by default; `Option<T>` on the Rust
  * side arrives as `T | null`, not as a missing key.
  *
- * Only the search types live here. `core/src/db/models.rs` also derives
- * `Serialize`, but none of it crosses the boundary yet — mirroring it now
- * would be types for calls nobody makes.
+ * `core/src/db/models.rs` also derives `Serialize`, but none of it crosses the
+ * boundary yet — mirroring it now would be types for calls nobody makes.
  */
+
+/** Mirrors `library::ImportEntry` in `src-tauri/src/library.rs`. */
+export interface ImportEntry {
+	/** Opaque, and also the database's filename stem. */
+	id: string;
+	name: string;
+	created_at_ms: number;
+	source_path: string;
+	message_count: number;
+	conversation_count: number;
+}
+
+/** Mirrors `db::queries::Stats`. */
+export interface Stats {
+	message_count: number;
+	conversation_count: number;
+}
+
+/** Mirrors `commands::ActiveImportInfo`. Counts come from the live connection. */
+export interface ActiveImportInfo {
+	entry: ImportEntry;
+	stats: Stats;
+}
+
+/**
+ * Mirrors `ingest::Progress`.
+ *
+ * `total` is an upper bound, not a promise — it counts folders under
+ * `messages/inbox` without opening them, and the import skips any that hold no
+ * message files. So treat the `start_import` promise resolving, **not**
+ * `done === total`, as completion.
+ */
+export interface ImportProgress {
+	done: number;
+	total: number;
+}
+
+/**
+ * Mirrors `AppError` in `src-tauri/src/error.rs`, which is serialized
+ * internally tagged. This is what a rejected `invoke` rejects *with*.
+ *
+ * User-facing wording lives in `$lib/errors`, not here — this file is only the
+ * shape of the wire.
+ */
+export type AppError =
+	| { kind: 'name_in_use'; name: string }
+	| { kind: 'empty_name' }
+	| { kind: 'not_an_export'; path: string }
+	| { kind: 'import_file_missing'; name: string }
+	| { kind: 'unknown_import'; id: string }
+	| { kind: 'unsupported_schema_version'; found: number; supported: number }
+	| { kind: 'invalid_schema_version'; found: number }
+	| { kind: 'corrupt_index'; path: string; message: string }
+	| { kind: 'io'; message: string }
+	| { kind: 'parse'; message: string }
+	| { kind: 'database'; message: string };
 
 /** A pagination window. Mirrors `search::Page`. */
 export interface Page {

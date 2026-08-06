@@ -1,7 +1,26 @@
 use rusqlite::{params, Connection, OptionalExtension};
+use serde::Serialize;
 
 use crate::ingest::parse::{MessageType, RawConversationFile, RawMessage};
 use crate::Result;
+
+/// How much a database holds. Exists so the app layer can show the size of an
+/// import without writing SQL against this crate's schema.
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct Stats {
+    pub message_count: i64,
+    pub conversation_count: i64,
+}
+
+/// Counts the rows [`Stats`] describes. Cheap on a database that was just
+/// imported into, since both tables are already in the page cache.
+pub fn stats(conn: &Connection) -> Result<Stats> {
+    Ok(Stats {
+        message_count: conn.query_row("SELECT count(*) FROM messages", [], |row| row.get(0))?,
+        conversation_count: conn
+            .query_row("SELECT count(*) FROM conversations", [], |row| row.get(0))?,
+    })
+}
 
 /// Inserts a conversation, or, if a row with the same `title`/`thread_path`
 /// already exists (e.g. a conversation split across multiple
@@ -158,4 +177,48 @@ pub fn insert_attachments(conn: &Connection, message_id: i64, message: &RawMessa
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ingest::import_export;
+    use crate::test_util::{migrated_connection, write_file};
+
+    #[test]
+    fn stats_are_zero_for_an_empty_database() {
+        let conn = migrated_connection();
+
+        let stats = stats(&conn).unwrap();
+
+        assert_eq!(stats.message_count, 0);
+        assert_eq!(stats.conversation_count, 0);
+    }
+
+    #[test]
+    fn stats_count_what_was_imported() {
+        let export = tempfile::tempdir().unwrap();
+        let inbox = export.path().join("messages").join("inbox");
+        write_file(
+            &inbox.join("alice_and_bob").join("message_1.json"),
+            r#"{
+                "participants": [{"name": "Alice"}, {"name": "Bob"}],
+                "messages": [
+                    {"sender_name": "Alice", "timestamp_ms": 1000, "content": "hi"},
+                    {"sender_name": "Bob", "timestamp_ms": 2000, "content": "hello"}
+                ],
+                "title": "Alice and Bob",
+                "is_still_participant": true,
+                "thread_path": "inbox/alice_and_bob"
+            }"#,
+        );
+
+        let mut conn = migrated_connection();
+        import_export(&mut conn, export.path()).unwrap();
+
+        let stats = stats(&conn).unwrap();
+
+        assert_eq!(stats.message_count, 2);
+        assert_eq!(stats.conversation_count, 1);
+    }
 }

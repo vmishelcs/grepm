@@ -1,11 +1,38 @@
 /**
- * Fake search results, shared by the vitest suite and `scripts/shoot.mjs`.
+ * Fake data, shared by the vitest suite and `scripts/shoot.mjs`.
  *
  * One source of sample data, so a screenshot and a test are looking at the
  * same thing. Deliberately includes the two cases that break naive rendering:
  * a message containing markup, and a message containing the match sentinels.
  */
-import { MATCH_END, MATCH_START, type SearchHit, type SearchResults } from './ipc/types';
+import {
+	MATCH_END,
+	MATCH_START,
+	type ImportEntry,
+	type SearchHit,
+	type SearchResults
+} from './ipc/types';
+
+/** A library with something in it, for the launch screen's list. */
+export const sampleImports: ImportEntry[] = [
+	{
+		id: '1786041256217',
+		name: 'Work chats',
+		created_at_ms: Date.UTC(2026, 7, 6, 18, 42),
+		source_path: '/home/vm/Downloads/facebook-export',
+		message_count: 12431,
+		conversation_count: 47
+	},
+	{
+		// Left with the default name, to show what one looks like in the list.
+		id: '1780329300000',
+		name: '2026-05-28 09:15 PDT',
+		created_at_ms: Date.UTC(2026, 4, 28, 16, 15),
+		source_path: '/media/backup/fb-archive-2019',
+		message_count: 512,
+		conversation_count: 6
+	}
+];
 
 /** Marks `text` the way `snippet()` does on the Rust side. */
 function matched(text: string): string {

@@ -61,12 +61,23 @@ only file that calls `invoke`, and it only wraps commands that actually exist
 in `src-tauri/src/lib.rs`. This mirrors the `SearchIndex` rule on the engine
 side: one boundary, one place to stub in tests.
 
+That covers `@tauri-apps/api/event` and the dialog plugin too — both reach Rust
+over the same bridge, so both are wrapped here rather than called from a
+component. A useful consequence: `mockIPC` stubs the folder picker as well, as
+the command `plugin:dialog|open`.
+
 ## 5. The type mirrors are hand-maintained
 
 `src/lib/ipc/types.ts` mirrors the `Serialize` types in
-`core/src/search/mod.rs`. There is no codegen — **change one, change the other
-in the same commit.** Field names are snake_case (serde's default) and Rust's
-`Option<T>` arrives as `T | null`, not as a missing key.
+`core/src/search/mod.rs` and in `src-tauri/src/{library,commands,error}.rs`.
+There is no codegen — **change one, change the other in the same commit.**
+Field names are snake_case (serde's default) and Rust's `Option<T>` arrives as
+`T | null`, not as a missing key.
+
+`AppError` is serialized internally tagged, so a rejected `invoke` rejects with
+`{ kind, ...fields }` rather than an `Error`. Narrow it with `$lib/errors`,
+which is also where the user-facing wording lives — `types.ts` describes the
+wire, not the copy.
 
 ## 6. Results are paged
 
@@ -82,9 +93,30 @@ npm run verify   # svelte-check, then prettier + eslint, then vitest
 
 Tests live next to what they test. `*.svelte.test.ts` runs in real Chromium
 (browser mode); plain `*.test.ts` runs in node. Tauri commands are stubbed with
-`mockIPC` from `@tauri-apps/api/mocks` — see `src/routes/page.svelte.test.ts`.
+`mockIPC` from `@tauri-apps/api/mocks`, which installs itself on `window` — so
+a test that stubs a command has to be a `*.svelte.test.ts` even when it renders
+no component:
+
+```ts
+afterEach(clearMocks);
+
+mockIPC((command, args) => {
+	if (command !== 'search') throw new Error(`unexpected command: ${command}`);
+	return sampleResults;
+});
+```
+
 Shared sample data lives in `src/lib/fixtures.ts`, and is the same data the
 screenshot script uses.
 
 For anything visual, run `npm run shoot` and look at the PNGs it writes to
-`.screenshots/`. Don't guess at layout.
+`.screenshots/`. Don't guess at layout. Its `SHOTS` list takes an optional
+`prepare` hook and an `imports` override, so states that aren't reachable by
+navigation — the naming step, an empty library — get captured too. Add an entry
+when you add a screen.
+
+## 8. Colours come from `src/app.css`
+
+The palette approximates Messenger's dark mode and lives in one place as custom
+properties (`--surface`, `--accent`, `--text-muted`, …), imported once by
+`+layout.svelte`. Use the tokens; don't hard-code hex in a component.

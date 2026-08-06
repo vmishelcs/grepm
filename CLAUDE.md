@@ -11,13 +11,30 @@ core/        grepm_core — the engine. Pure Rust library, no UI deps.
              db/ (SQLite schema, migrations, queries)
              ingest/ (scan → parse → load)
              search/ (the SearchIndex trait + its FTS5 implementation)
-src-tauri/   the Tauri shell. Currently the `greet` scaffold.
+src-tauri/   the Tauri shell.
+             library.rs (the managed imports folder + its index)
+             commands.rs (the IPC surface), error.rs (serializable errors)
 src/         the SvelteKit front end. See src/CLAUDE.md before editing.
-samples/     a small synthetic export for manual testing.
+samples/     a small synthetic export, used by manual testing and by
+             `src-tauri/src/library.rs`'s import tests.
 ```
 
-The engine is finished and heavily tested; the app layer is not. Most work
-happens in `core/` or `src/`.
+The engine is finished and heavily tested; the app layer has its first slice —
+importing an export and opening one again — but no search UI yet.
+
+## The library
+
+An import is one SQLite file in a folder grepm owns
+(`<app_data_dir>/imports/`), named by an `index.json` beside it. The index is
+the source of truth for the launch screen's list, so it can drift from the
+folder: a database deleted by hand stays listed until someone opens it, which
+is the `ImportFileMissing` error. That's deliberate — the alternative is
+opening every file at launch just to read a name.
+
+Ids are opaque, so a user's chosen name never becomes a filename and never has
+to satisfy a filesystem's rules. One import per file, which also sidesteps
+`KNOWN_ISSUES.md` §9 (`populate_fts` isn't idempotent, so re-importing into an
+existing database is unsafe).
 
 ## Commands
 

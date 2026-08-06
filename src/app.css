@@ -1,0 +1,64 @@
+/**
+ * The app's global surface: palette tokens, typography, and the reset the
+ * Tauri webview doesn't give us.
+ *
+ * The palette approximates Facebook Messenger's dark mode — a near-black
+ * surface stack, off-white text that stops short of pure white, and Messenger
+ * blue reserved for things the user is meant to click. It lives here rather
+ * than in the launch screen so every screen added later inherits it.
+ */
+
+:root {
+	/* Surfaces, darkest first. Anything that sits "on top" steps one lighter. */
+	--surface: #18191a;
+	--surface-raised: #242526;
+	--surface-hover: #3a3b3c;
+	--divider: #3e4042;
+
+	--text: #e4e6eb;
+	--text-muted: #b0b3b8;
+
+	--accent: #0a7cff;
+	--accent-hover: #3391ff;
+	--accent-active: #0064d1;
+	--on-accent: #ffffff;
+
+	/* Lightened well past Messenger's red, which is tuned for a white
+	   background and turns to mud on this one. */
+	--danger: #ff8a8a;
+
+	/* Darkens the webview's own chrome — scrollbars, form controls, caret. */
+	color-scheme: dark;
+
+	font-family:
+		system-ui,
+		-apple-system,
+		'Segoe UI',
+		Helvetica,
+		Arial,
+		sans-serif;
+	font-size: 16px;
+	line-height: 1.5;
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+
+	color: var(--text);
+	background-color: var(--surface);
+}
+
+/* Without this, padding is *added* to a `100dvh` height rather than counted
+   inside it, so a full-height screen with any padding overflows the viewport
+   and the window grows a scrollbar with nothing to scroll. */
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	/* Overscroll past the end of a screen should still read as the app. */
+	background-color: var(--surface);
+}
