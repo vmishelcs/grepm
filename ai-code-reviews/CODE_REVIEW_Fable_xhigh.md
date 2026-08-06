@@ -77,7 +77,7 @@ performance headroom for large exports.
 | D3 | Low | code | `db/models.rs` is currently dead code |
 | P1–P4 | — | perf | Statement caching, participant lookup caching, count-query duplication, parse-inside-transaction |
 | T1–T4 | — | tests | Missing re-import assertions, ~~shared helpers~~ (T3), ~~property tests~~ (T4) |
-| I1–I3 | — | infra | ~~No Cargo workspace~~ (I1 done), no CI, fmt drift |
+| I1–I3 | — | infra | ~~No Cargo workspace~~, ~~no CI~~, ~~fmt drift~~ (all done) |
 
 ---
 
@@ -758,10 +758,13 @@ Measured against the Apollo Rust handbook conventions the project uses:
   > A permanent multi-step test would need `migrate` to take the migration
   > list as a parameter instead of reading the global; not done, as that's a
   > wider change than this item calls for.
-- **Formatting:** `cargo fmt --check` fails on three test-file spots (long
+- **Formatting:** ✅ **Addressed** — `cargo fmt --check` fails on three
+  test-file spots (long
   hand-aligned tuple rows and one import line). Either run `cargo fmt` and
   accept its output, or add a `rustfmt.toml` codifying the intended
   exceptions — a check that's *almost* clean is one nobody can put in CI.
+  (See I3: two of the three were reformatted, the third kept its alignment
+  behind `#[rustfmt::skip]`, and CI now runs the check.)
 
 ---
 
@@ -830,12 +833,54 @@ for the wiring step:
   > together they were 9 GB of dead cache. The members' `.gitignore` entries
   > for `/target/` were left in place; they cost nothing and still apply if a
   > crate is ever built outside the workspace.
-- **I2 — No CI.** There is no `.github/` (or equivalent). The suite is fast
+- **I2 — No CI** ✅ **Addressed (2026-08-05).** There is no `.github/` (or
+  equivalent). The suite is fast
   (~0.5 s) and clippy is already clean — this project is one small workflow
   away from enforcing `fmt --check` + `clippy -D warnings` + `cargo test`,
   and findings like the fmt drift (I3) only stay fixed with a gate.
-- **I3 — fmt drift** — see §8; blocked on deciding intent, then trivially
-  enforced by I2.
+
+  > **Resolution.** `.github/workflows/ci.yml`, on pushes to `main` and on
+  > pull requests, in two jobs:
+  >
+  > - **engine** — `cargo fmt --all --check` (both crates; formatting needs
+  >   no dependencies, so it's cheapest here), then `clippy -D warnings` and
+  >   `cargo test` on `grepm_core`. Deliberately `-p grepm_core` rather than
+  >   `--workspace`, so the job carrying all the tests doesn't wait on the
+  >   Tauri dependency tree.
+  > - **app** — installs the Tauri system libraries and type-checks
+  >   `grepm`. It guards a crate that's still scaffold, but it's what
+  >   catches a `grepm_core` API change breaking its one consumer.
+  >
+  > Both pass `--locked`, so a stale `Cargo.lock` fails the build instead of
+  > being updated in place — cheap to add now that I1 left a single lockfile
+  > at the root. `Swatinem/rust-cache` matters more than usual here:
+  > `rusqlite`'s `bundled` feature compiles the SQLite amalgamation from
+  > source on every cold build.
+  >
+  > Ran all four commands locally before committing, so the first run starts
+  > green. `clippy::perf` isn't named anywhere — it's warn-by-default, so
+  > listing it would imply a change that isn't one.
+  >
+  > Not done: branch protection. CI on `main` reports *after* the push
+  > lands, so this is a smoke alarm rather than a gate; making it block
+  > needs PR-based work plus required checks in repo settings. That's the
+  > author's call about how they want to work, not a code change.
+- **I3 — fmt drift** ✅ **Addressed (2026-08-05)** — see §8; blocked on
+  deciding intent, then trivially enforced by I2.
+
+  > **Resolution.** Decided per-site rather than globally, since the two
+  > spots wanted opposite things. `tests/search.rs`'s over-long
+  > `search::run(...)` call was simply reformatted — the file's *other*
+  > `search::run` call was already in rustfmt's exploded form, so this made
+  > it consistent. `tests/ingestion.rs`'s expected-attachments literal got
+  > `#[rustfmt::skip]` and proper column alignment: it's a table of six
+  > comparable rows, and rustfmt's one-field-per-line version buries the
+  > two same-millisecond photo rows in thirty-odd lines.
+  >
+  > A `rustfmt.toml` was the wrong tool — it can't express "this one literal
+  > is a table", and the settings that would stop rustfmt exploding it would
+  > apply everywhere. `cargo fmt --all --check` is now clean and enforced by
+  > I2.
 
 ---
 
@@ -882,8 +927,8 @@ about a codebase that is above average:
    see A2; the per-conversation cache (P2) is still open.
 5. **Persist reactions** (C4) with a dedup story that tolerates reactions
    added to old messages.
-6. **Set up ~~workspace~~ (done) + CI** (I2), run `cargo fmt` (I3), switch
-   hot-path queries to `prepare_cached` (P1).
+6. ~~**Set up workspace + CI** (I1, I2), run `cargo fmt` (I3)~~ **Done** —
+   switching hot-path queries to `prepare_cached` (P1) is still open.
 7. Sweep the small items (~~A3~~, ~~A4~~, ~~A5~~, ~~A6~~, ~~T3~~, ~~T4~~
    (all done), A7, D2, D3) opportunistically.
 8. Before the UI renders a single snippet, settle the escaping story (A8).
