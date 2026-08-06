@@ -672,6 +672,66 @@ mod tests {
     }
 
     #[test]
+    fn insert_message_reports_a_duplicate_as_none_rather_than_an_error() {
+        let conn = migrated_connection();
+        let conversation_id = empty_conversation(&conn);
+        let messages = parse_message_json(
+            r#"{
+                "participants": [],
+                "messages": [{"timestamp_ms": 1000, "content": "hi"}],
+                "title": "Alice",
+                "thread_path": "inbox/conv_a"
+            }"#,
+        )
+        .messages;
+
+        let first = queries::insert_message(&conn, conversation_id, None, &messages[0]).unwrap();
+        let second = queries::insert_message(&conn, conversation_id, None, &messages[0]).unwrap();
+
+        assert!(first.is_some());
+        assert_eq!(second, None);
+    }
+
+    #[test]
+    fn insert_message_errors_on_a_constraint_violation_that_is_not_a_duplicate() {
+        // The extra index stands in for a constraint a future schema might
+        // add. The insert's conflict handling is scoped to the dedup index,
+        // so violating anything else has to surface as an error — a
+        // silently dropped row would be indistinguishable from a duplicate.
+        let conn = migrated_connection();
+        let conversation_id = empty_conversation(&conn);
+        conn.execute(
+            "CREATE UNIQUE INDEX one_message_per_millisecond ON messages (timestamp_ms)",
+            [],
+        )
+        .unwrap();
+
+        let messages = parse_message_json(
+            r#"{
+                "participants": [],
+                "messages": [
+                    {"timestamp_ms": 1000, "content": "hi"},
+                    {"timestamp_ms": 1000, "content": "not a duplicate"}
+                ],
+                "title": "Alice",
+                "thread_path": "inbox/conv_a"
+            }"#,
+        )
+        .messages;
+
+        queries::insert_message(&conn, conversation_id, None, &messages[0])
+            .unwrap()
+            .expect("the first message is new");
+
+        let result = queries::insert_message(&conn, conversation_id, None, &messages[1]);
+
+        assert!(
+            result.is_err(),
+            "a non-dedup constraint violation must not be reported as a duplicate"
+        );
+    }
+
+    #[test]
     fn load_messages_leaves_sender_id_null_when_sender_name_is_absent() {
         let conn = migrated_connection();
         let conversation_id = empty_conversation(&conn);

@@ -93,6 +93,13 @@ pub fn find_or_create_participant(
 /// The message's type and attachment count are derived from its attachment
 /// lists (see [`RawMessage::message_type`] and
 /// [`RawMessage::attachment_count`]).
+///
+/// The conflict target spells the dedup index out rather than using
+/// `INSERT OR IGNORE`, which would also swallow `NOT NULL`, `CHECK`, and
+/// any future constraint — turning a bug into silently missing messages,
+/// since a swallowed row is indistinguishable from a duplicate here.
+/// Naming the index scopes the "ignore" to duplicates and lets everything
+/// else surface as an error.
 pub fn insert_message(
     conn: &Connection,
     conversation_id: i64,
@@ -100,9 +107,12 @@ pub fn insert_message(
     message: &RawMessage,
 ) -> Result<Option<i64>> {
     conn.execute(
-        "INSERT OR IGNORE INTO messages \
+        "INSERT INTO messages \
          (conversation_id, sender_id, timestamp_ms, content, type, attachment_count) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6) \
+         ON CONFLICT (conversation_id, COALESCE(sender_id, -1), timestamp_ms, \
+                      COALESCE(content, ''), type, attachment_count) \
+         DO NOTHING",
         params![
             conversation_id,
             sender_id,
