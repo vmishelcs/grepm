@@ -69,9 +69,10 @@ performance headroom for large exports.
 | A3 | ~~Low~~ **Addressed** | db | `INSERT OR IGNORE` swallows more than dedup conflicts |
 | A4 | ~~Low~~ **Addressed** | db | Negative `user_version` panics `migrate` |
 | A5 | ~~Low~~ **Addressed** | scan | `count` and `scan` disagree about symlinked conversation dirs |
-| A6 | Low | search | Snippet delimiters `[`/`]` collide with literal brackets |
+| A6 | ~~Low~~ **Addressed** | search | Snippet delimiters `[`/`]` collide with literal brackets |
 | A7 | Low | search | Participant filter is case-sensitive; empty query silently returns 0 |
-| D1 | Medium | docs | `KNOWN_ISSUES.md` #2 describes a fix that is not the one implemented |
+| A8 | Medium (when the UI lands) | ui/security | Rendering a snippet as HTML is an injection vector — *added after the original review* |
+| D1 | ~~Medium~~ **Addressed** | docs | `KNOWN_ISSUES.md` #2 describes a fix that is not the one implemented |
 | D2 | Low | docs | README drift: trait signature, test count, "(re)builds" wording |
 | D3 | Low | code | `db/models.rs` is currently dead code |
 | P1–P4 | — | perf | Statement caching, participant lookup caching, count-query duplication, parse-inside-transaction |
@@ -425,7 +426,33 @@ one, so a progress UI built on `count` would never reach 100%. Align the two
 checks (and decide explicitly whether symlinked conversation dirs are in or
 out).
 
-### A6 — Snippet delimiters collide with message text — **Low**
+### A6 — Snippet delimiters collide with message text — **Low** ✅ **Addressed**
+
+> **Resolution (2026-08-05).** Switched to the suggested interlinear
+> annotation pair, exposed as `search::MATCH_START` (`U+FFF9`) and
+> `search::MATCH_END` (`U+FFFB`). They live in `search/mod.rs`, not
+> `search/fts.rs`: how a match is marked is part of what `SearchIndex`
+> promises about `SearchHit.snippet`, not an FTS5 detail, and a consumer has
+> to name them to translate them — which it must do without reaching past
+> the trait.
+>
+> `SearchHit::snippet` now documents the contract, including that the
+> surrounding text is sender-controlled and needs escaping (see A8).
+>
+> Pinned by `match_markers_are_distinguishable_from_punctuation_in_the_message`
+> (`core/tests/search.rs`), which searches "coffee" in `I read [1] and the
+> coffee was fine` and asserts the full snippet — the message's own brackets
+> come through untouched while only the match is wrapped. Under the old
+> markers that snippet was `I read [1] and the [coffee] was fine`, with "1"
+> indistinguishable from a highlight. Suite: 154 passing, clippy clean.
+>
+> Left alone deliberately: the `'...'` ellipsis argument has the same in-band
+> ambiguity (a message can trail off with "..."), but a consumer has no
+> reason to distinguish "clipped here" from typed ellipsis, so it isn't worth
+> a sentinel. Also not done: stripping `U+FFF9`/`U+FFFB` from `content` at
+> ingest, which is what would make collisions impossible rather than merely
+> implausible. That changes stored data for a case that doesn't arise in
+> exported chat text.
 
 `snippet(messages_fts, 0, '[', ']', '...', 8)` (`core/src/search/fts.rs:69`)
 marks matches with characters that legitimately occur in chat text, so a UI
@@ -450,11 +477,76 @@ the Unicode interlinear annotation pair `\u{FFF9}`/`\u{FFFB}`, or a private
   picker; wrong for a filter fed by a text box. Worth a `COLLATE NOCASE`
   decision when the UI lands.
 
+### A8 — Rendering a snippet as HTML is an injection vector — **Medium (when the UI lands)**
+
+*Added 2026-08-05, after the original review — surfaced while fixing A6, not
+a finding of the review itself.*
+
+`SearchHit.snippet` (`core/src/search/mod.rs`) is message text the sender
+wrote, carrying `MATCH_START`/`MATCH_END` markers the UI is expected to turn
+into markup. The obvious implementation of that step is also the wrong one:
+
+```svelte
+<!-- unsafe -->
+{@html hit.snippet.replaceAll(MATCH_START, '<mark>').replaceAll(MATCH_END, '</mark>')}
+```
+
+Any message whose text contains markup is then interpreted as markup inside
+the webview. A sender who wrote `<img src=x onerror=...>` — or any of the
+usual payloads — gets script execution in a Tauri window, which is a more
+serious boundary than a browser tab: the same context reaches the Tauri IPC
+bridge and whatever commands are exposed on it. The attacker doesn't need to
+compromise anything; they just need to have sent the victim a message years
+ago, and the victim to search for a word in it.
+
+Nothing is wrong today — nothing renders snippets yet, which is why this is
+scoped to "when the UI lands" — but the bug is easy to write and easy to
+miss in review, because the marker-to-markup replacement *looks* like the
+whole job.
+
+**The rule:** escape first, then substitute. HTML-escape the entire snippet,
+and only afterwards replace the (now unescaped-by-construction) sentinels
+with `<mark>`. Equivalently, and better: split the snippet on the sentinels
+and let the framework render the pieces as text nodes, so no raw-HTML
+insertion happens at all —
+
+```svelte
+{#each splitOnMarkers(hit.snippet) as part}{#if part.matched}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}
+```
+
+This is why the sentinels are non-ASCII format characters rather than
+markup-adjacent punctuation: the split is unambiguous even when the message
+contains angle brackets, quotes, or entities.
+
+Note the ordering matters in one direction only. Escaping first is safe
+because escaping can't produce a sentinel; substituting first is not,
+because the escape pass would then mangle the `<mark>` tags it just
+inserted, and a careless "escape everything except tags" pass reopens the
+hole.
+
+Worth deciding at the same time: whether `conversation_title` and
+`sender_name` get the same treatment. Both are also export-derived,
+sender-influenced strings, and both will be rendered next to the snippet.
+
 ---
 
 ## 5. Documentation drift
 
-### D1 — `KNOWN_ISSUES.md` #2 describes a fix that isn't the implemented one — **Medium**
+### D1 — `KNOWN_ISSUES.md` #2 describes a fix that isn't the implemented one — **Medium** ✅ **Addressed**
+
+> **Resolution (2026-08-05).** Entry #2 deleted rather than corrected: it
+> documented an already-fixed issue, and the design it was describing badly
+> is stated accurately where it belongs — the NULL-content rationale lives on
+> the `messages.content` column, `insert_message`, and the
+> `duplicate_messages_with_null_content_are_rejected` test. A rewritten entry
+> would only have restated those, with the same drift risk that made it wrong
+> in the first place.
+>
+> The number is retired, not reused: `README.md`, `core/src/search/fts.rs`,
+> and `core/tests/ingestion.rs` all cite entries by number, so renumbering
+> would have silently broken them (and this review's own citations of #3, #5,
+> #9, #10). The file's intro now records that numbering rule, so the gap
+> doesn't read as an accident.
 
 KNOWN_ISSUES #2 states: "`content` is now `TEXT NOT NULL DEFAULT ''` …
 `insert_message` stores a missing message body as `''` instead of `NULL`."
@@ -634,6 +726,9 @@ for the wiring step:
 - `grepm_core::Error` will need a serializable mapping for command results
   (Tauri requires `Serialize` errors); the structured error enum makes that
   straightforward — resist flattening to `String` at the boundary.
+- Snippet rendering is the one step in the wiring with a security
+  consequence: escape before substituting the match markers, or skip raw-HTML
+  insertion entirely. See A8.
 
 ---
 
@@ -690,8 +785,8 @@ about a codebase that is above average:
    inside `load_conversation`, and switch `populate_fts` to FTS5's
    `'rebuild'` command. Add the T1 invariants test. This closes the known
    "re-imports are broken" issue end to end.
-2. ~~**Close the NULL-key upsert hole** (C3) and correct KNOWN_ISSUES #5~~
-   **Done** — see C3. KNOWN_ISSUES #2 (D1) is still wrong.
+2. ~~**Close the NULL-key upsert hole** (C3) and correct KNOWN_ISSUES #5 and
+   #2 (D1) while in there.~~ **Done** — see C3 and D1.
 3. ~~**Add ordering tiebreakers** (A1) — one line, prevents user-visible
    pagination glitches the moment the UI exists.~~ **Done** — see A1.
 4. ~~**Merge participant find/create/link into one API** (A2)~~ **Done** —
@@ -700,5 +795,7 @@ about a codebase that is above average:
    added to old messages.
 6. **Set up workspace + CI** (I1, I2), run `cargo fmt` (I3), switch hot-path
    queries to `prepare_cached` (P1).
-7. Sweep the small items (~~A3~~, ~~A4~~, ~~A5~~ (all done), A6, A7, D2, D3,
-   T3, T4) opportunistically.
+7. Sweep the small items (~~A3~~, ~~A4~~, ~~A5~~, ~~A6~~ (all done), A7, D2,
+   D3, T3, T4) opportunistically.
+8. Before the UI renders a single snippet, settle the escaping story (A8).
+   It's the one item here that turns into a vulnerability rather than a bug.
