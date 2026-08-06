@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { asset, resolve } from '$app/paths';
 	import ConversationList from '$lib/components/ConversationList.svelte';
 	import { describeError } from '$lib/errors';
 	import {
@@ -61,18 +61,11 @@
 		</aside>
 
 		<section>
-			<!-- Drawn rather than shipped as a bitmap: it stays sharp at any
-			     size or display density, and the app bundles no image assets.
-			     Decorative, so hidden from assistive tech — the text below
+			<!-- The app's own mark, the same file `src-tauri/icons/` is generated
+			     from, so the two can't drift. Vector, so it stays sharp at any
+			     density. Empty `alt`: it is decorative, and the text below
 			     already says everything it says. -->
-			<svg class="bubble" viewBox="0 0 96 96" aria-hidden="true" focusable="false">
-				<path
-					d="M24 10H72A18 18 0 0 1 90 28V52A18 18 0 0 1 72 70H38L16 88L24 70A18 18 0 0 1 6 52V28A18 18 0 0 1 24 10Z"
-				/>
-				<circle cx="32" cy="40" r="6" />
-				<circle cx="48" cy="40" r="6" />
-				<circle cx="64" cy="40" r="6" />
-			</svg>
+			<img class="mark" src={asset('/mark.svg')} alt="" />
 
 			<p class="prompt">Select a conversation to read</p>
 			<p class="hint">Nothing is selected</p>
@@ -180,18 +173,10 @@
 		padding: 1.5rem;
 	}
 
-	.bubble {
-		width: 5.5rem;
-		height: 5.5rem;
-		margin-bottom: 0.75rem;
-	}
-
-	.bubble path {
-		fill: var(--accent);
-	}
-
-	.bubble circle {
-		fill: var(--on-accent);
+	.mark {
+		width: 7rem;
+		height: 7rem;
+		margin-bottom: 1rem;
 	}
 
 	.prompt {

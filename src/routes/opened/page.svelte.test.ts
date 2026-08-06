@@ -3,7 +3,7 @@
  * says nothing is selected.
  */
 import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
 
@@ -36,6 +36,20 @@ describe('the reader', () => {
 
 		await expect.element(page.getByText('Select a conversation to read')).toBeInTheDocument();
 		await expect.element(page.getByText('Nothing is selected')).toBeInTheDocument();
+	});
+
+	it('shows the app mark while nothing is selected', async () => {
+		stubOpenImport();
+
+		render(Page);
+
+		// `naturalWidth`, not just the attribute: a wrong path still renders an
+		// <img> tag, and a broken mark would only show up in a screenshot.
+		await vi.waitFor(() => {
+			const mark = document.querySelector('img.mark') as HTMLImageElement | null;
+			expect(mark?.src).toContain('mark.svg');
+			expect(mark?.naturalWidth).toBeGreaterThan(0);
+		});
 	});
 
 	it('lists each conversation with its participants and message count', async () => {

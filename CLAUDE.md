@@ -101,7 +101,17 @@ cargo fmt --all --check
 npm run verify                               # check + lint + test
 npm run shoot                                # screenshot the UI (see below)
 npm run tauri dev                            # the real desktop app
+
+npx tauri icon static/mark.svg               # after editing the app mark
 ```
+
+`static/mark.svg` is the single source for the app's identity: the favicon, the
+image the reader shows when nothing is selected, and every PNG/ICO/ICNS in
+`src-tauri/icons/`. Edit it and re-run the icon command, or the two drift.
+Two things about that file bite: its colours are hard-coded rather than palette
+tokens, because it is rasterised outside the browser where custom properties
+don't exist; and an XML comment cannot contain `--`, so the token names can't
+be written with their real leading dashes.
 
 `npm run verify` is the front-end definition of done. `npm run shoot` renders
 routes in headless Chromium against a stubbed Tauri bridge and writes PNGs to
