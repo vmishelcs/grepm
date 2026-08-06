@@ -1,0 +1,75 @@
+{
+  "participants": [
+    {
+      "name": "Rosa Jansen"
+    },
+    {
+      "name": "Giulia Vasquez"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Giulia Vasquez",
+      "timestamp_ms": 1633736664069,
+      "content": "the r\u00c3\u00a9sum\u00c3\u00a9 looks great btw",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Giulia Vasquez",
+      "timestamp_ms": 1633731520686,
+      "content": "haha nice, what time",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Giulia Vasquez",
+      "timestamp_ms": 1633729230508,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1633726303074,
+      "content": "caf\u00c3\u00a9 on the corner at 9?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Rosa Jansen",
+      "timestamp_ms": 1633725308431,
+      "content": "omw",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1633723053620,
+      "content": "did you see my last message?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Giulia Vasquez",
+      "timestamp_ms": 1633717655756,
+      "content": "omw",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Rosa Jansen",
+      "timestamp_ms": 1633713435754,
+      "content": "no worries at all",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Wedding Planning",
+  "is_still_participant": true,
+  "thread_path": "inbox/weddingplanning_7837589220086804",
+  "magic_words": []
+}

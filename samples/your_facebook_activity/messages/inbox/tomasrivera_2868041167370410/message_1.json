@@ -1,0 +1,30 @@
+{
+  "participants": [
+    {
+      "name": "Tom\u00c3\u00a1s Rivera"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1608935791827,
+      "content": "that works for me",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1608932889363,
+      "content": "just landed, heading over now",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Tom\u00c3\u00a1s Rivera",
+  "is_still_participant": true,
+  "thread_path": "inbox/tomasrivera_2868041167370410",
+  "magic_words": []
+}

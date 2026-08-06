@@ -1,0 +1,107 @@
+{
+  "participants": [
+    {
+      "name": "Mira Gonzalez"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1667489072267,
+      "content": "the r\u00c3\u00a9sum\u00c3\u00a9 looks great btw",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Gonzalez",
+      "timestamp_ms": 1667484222919,
+      "content": "let me check and get back to you",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1667480068260,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1667479790211,
+      "content": "let me check and get back to you",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1667478580620,
+      "content": "let me check and get back to you",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Gonzalez",
+      "timestamp_ms": 1667474127046,
+      "content": "who's bringing the snacks",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Gonzalez",
+      "timestamp_ms": 1667471955703,
+      "content": "who's bringing the snacks",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Gonzalez",
+      "timestamp_ms": 1667470954046,
+      "content": "ugh my wifi's down again",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Gonzalez",
+      "timestamp_ms": 1667468076691,
+      "content": "haha nice, what time",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Gonzalez",
+      "timestamp_ms": 1667466450373,
+      "content": "brought the whole crew \u00f0\u009f\u008e\u0089",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Gonzalez",
+      "timestamp_ms": 1667465445425,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1667464121341,
+      "content": "rescheduling to next week if that's ok",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Gonzalez",
+      "timestamp_ms": 1667463183959,
+      "content": "just landed, heading over now",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Mira Gonzalez",
+  "is_still_participant": true,
+  "thread_path": "inbox/miragonzalez_8225766383669819",
+  "magic_words": []
+}

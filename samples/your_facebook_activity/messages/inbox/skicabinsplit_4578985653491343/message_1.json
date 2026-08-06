@@ -1,0 +1,121 @@
+{
+  "participants": [
+    {
+      "name": "Rosa Ueda"
+    },
+    {
+      "name": "Rosa Ibrahim"
+    },
+    {
+      "name": "Esme Costa"
+    },
+    {
+      "name": "Esme Nakamura"
+    },
+    {
+      "name": "Zara Xu"
+    },
+    {
+      "name": "Anneke Jansen"
+    },
+    {
+      "name": "Fionn Dubois"
+    },
+    {
+      "name": "Anneke Whitfield"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Esme Costa",
+      "timestamp_ms": 1690743291127,
+      "content": "\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5 let's gooo",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Fionn Dubois",
+      "timestamp_ms": 1690740564485,
+      "content": "sounds good, see you soon!",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Rosa Ibrahim",
+      "timestamp_ms": 1690736487098,
+      "content": "caf\u00c3\u00a9 on the corner at 9?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1690734143499,
+      "content": "brought the whole crew \u00f0\u009f\u008e\u0089",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Fionn Dubois",
+      "timestamp_ms": 1690729339527,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Rosa Ibrahim",
+      "timestamp_ms": 1690725785305,
+      "content": "running about ten minutes late sorry",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Anneke Jansen",
+      "timestamp_ms": 1690722594280,
+      "content": "rescheduling to next week if that's ok",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Rosa Ueda",
+      "timestamp_ms": 1690717308633,
+      "content": "caf\u00c3\u00a9 on the corner at 9?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Anneke Whitfield",
+      "timestamp_ms": 1690713133994,
+      "content": "that works for me",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Rosa Ueda",
+      "timestamp_ms": 1690712337266,
+      "content": "I'll be there in five",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Anneke Jansen",
+      "timestamp_ms": 1690710784593,
+      "content": "haha nice, what time",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Esme Nakamura",
+      "timestamp_ms": 1690707673922,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Ski Cabin Split",
+  "is_still_participant": false,
+  "thread_path": "inbox/skicabinsplit_4578985653491343",
+  "magic_words": []
+}

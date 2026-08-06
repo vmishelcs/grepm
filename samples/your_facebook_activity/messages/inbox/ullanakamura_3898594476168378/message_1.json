@@ -1,0 +1,58 @@
+{
+  "participants": [
+    {
+      "name": "Ulla Nakamura"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Ulla Nakamura",
+      "timestamp_ms": 1629341344343,
+      "content": "na\u00c3\u00afve of me to think it'd be quiet",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Ulla Nakamura",
+      "timestamp_ms": 1629340548887,
+      "content": "I'll be there in five",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1629336907968,
+      "content": "should we just meet there instead?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Ulla Nakamura",
+      "timestamp_ms": 1629334436850,
+      "content": "haha nice, what time",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Ulla Nakamura",
+      "timestamp_ms": 1629331259617,
+      "content": "did anyone grab the tickets?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Ulla Nakamura",
+      "timestamp_ms": 1629326198362,
+      "content": "na\u00c3\u00afve of me to think it'd be quiet",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Ulla Nakamura",
+  "is_still_participant": true,
+  "thread_path": "inbox/ullanakamura_3898594476168378",
+  "magic_words": []
+}

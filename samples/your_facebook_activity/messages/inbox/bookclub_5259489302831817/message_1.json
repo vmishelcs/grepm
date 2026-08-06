@@ -1,0 +1,39 @@
+{
+  "participants": [
+    {
+      "name": "Farid Moreau"
+    },
+    {
+      "name": "Giulia Eriksen"
+    },
+    {
+      "name": "Yusuf Ferrari"
+    },
+    {
+      "name": "Mira Haddad"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Farid Moreau",
+      "timestamp_ms": 1731767168867,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1731763682966,
+      "content": "just landed, heading over now",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Book Club",
+  "is_still_participant": false,
+  "thread_path": "inbox/bookclub_5259489302831817",
+  "magic_words": []
+}

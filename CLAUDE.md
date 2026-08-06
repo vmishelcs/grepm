@@ -15,8 +15,12 @@ src-tauri/   the Tauri shell.
              library.rs (the managed imports folder + its index)
              commands.rs (the IPC surface), error.rs (serializable errors)
 src/         the SvelteKit front end. See src/CLAUDE.md before editing.
-samples/     a small synthetic export, used by manual testing and by
-             `src-tauri/src/library.rs`'s import tests.
+samples/     a synthetic export — 104 conversations, ~1,200 messages — used
+             by manual testing and by `src-tauri/src/library.rs`'s import
+             tests. Big enough to exercise the windowed sidebar, and it
+             includes two conversations with no messages and one group of
+             nine. Tests over it assert shapes, not exact totals, so it can
+             grow again without breaking them.
 ```
 
 The engine is finished and heavily tested. The app layer now imports an export

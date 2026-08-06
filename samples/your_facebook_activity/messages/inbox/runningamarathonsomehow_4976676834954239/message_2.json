@@ -1,0 +1,80 @@
+{
+  "participants": [
+    {
+      "name": "Anneke Dubois"
+    },
+    {
+      "name": "Hugo Quinn"
+    },
+    {
+      "name": "Yusuf Petrov"
+    },
+    {
+      "name": "Jae Yilmaz"
+    },
+    {
+      "name": "Ren\u00c3\u00a9e Dufour"
+    },
+    {
+      "name": "Diego Ueda"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Hugo Quinn",
+      "timestamp_ms": 1722772017936,
+      "content": "ugh my wifi's down again",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Diego Ueda",
+      "timestamp_ms": 1722767507659,
+      "content": "running about ten minutes late sorry",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1722762507128,
+      "content": "she said \u00e2\u0080\u009csee you tomorrow\u00e2\u0080\u009d \u00e2\u0080\u0094 can't wait \u00f0\u009f\u00a5\u00b3",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Yusuf Petrov",
+      "timestamp_ms": 1722757440248,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Hugo Quinn",
+      "timestamp_ms": 1722755336706,
+      "content": "rescheduling to next week if that's ok",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1722750001797,
+      "content": "I'm going to have to bail, sorry \u00e2\u0080\u0094 long day",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Ren\u00c3\u00a9e Dufour",
+      "timestamp_ms": 1722748237439,
+      "content": "haha nice, what time",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Running a Marathon Somehow",
+  "is_still_participant": true,
+  "thread_path": "inbox/runningamarathonsomehow_4976676834954239",
+  "magic_words": []
+}

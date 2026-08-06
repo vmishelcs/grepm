@@ -1,0 +1,51 @@
+{
+  "participants": [
+    {
+      "name": "Iris Oyelaran"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Iris Oyelaran",
+      "timestamp_ms": 1563642406738,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Iris Oyelaran",
+      "timestamp_ms": 1563637812851,
+      "content": "100% agree \u00e2\u0080\u0094 that's the move \u00f0\u009f\u0091\u008d",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Iris Oyelaran",
+      "timestamp_ms": 1563637463943,
+      "content": "\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5 let's gooo",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Iris Oyelaran",
+      "timestamp_ms": 1563632394044,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Iris Oyelaran",
+      "timestamp_ms": 1563628839245,
+      "content": "no worries at all",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Iris Oyelaran",
+  "is_still_participant": false,
+  "thread_path": "inbox/irisoyelaran_8311837810713248",
+  "magic_words": []
+}

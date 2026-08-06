@@ -1,0 +1,78 @@
+{
+  "participants": [
+    {
+      "name": "Noor Quinn"
+    },
+    {
+      "name": "Nadia Gonzalez"
+    },
+    {
+      "name": "Nadia Adeyemi"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Noor Quinn",
+      "timestamp_ms": 1646940876212,
+      "content": "did anyone grab the tickets?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1646939621042,
+      "content": "ugh my wifi's down again",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Nadia Adeyemi",
+      "timestamp_ms": 1646936693057,
+      "content": "did anyone grab the tickets?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Nadia Gonzalez",
+      "timestamp_ms": 1646934866881,
+      "content": "I'll be there in five",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1646933396774,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1646928874627,
+      "content": "that works for me",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Nadia Adeyemi",
+      "timestamp_ms": 1646924666837,
+      "content": "she said \u00e2\u0080\u009csee you tomorrow\u00e2\u0080\u009d \u00e2\u0080\u0094 can't wait \u00f0\u009f\u00a5\u00b3",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Noor Quinn",
+      "timestamp_ms": 1646919824293,
+      "content": "did anyone grab the tickets?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Sailing Club",
+  "is_still_participant": true,
+  "thread_path": "inbox/sailingclub_9901093191708088",
+  "magic_words": []
+}

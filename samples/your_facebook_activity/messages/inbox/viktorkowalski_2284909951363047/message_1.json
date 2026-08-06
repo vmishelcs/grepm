@@ -1,0 +1,58 @@
+{
+  "participants": [
+    {
+      "name": "Viktor Kowalski"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Viktor Kowalski",
+      "timestamp_ms": 1529434676288,
+      "content": "should we just meet there instead?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1529429691763,
+      "content": "who's bringing the snacks",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1529427086274,
+      "content": "rescheduling to next week if that's ok",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1529426285481,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1529423293031,
+      "content": "I'll be there in five",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1529417990998,
+      "content": "rescheduling to next week if that's ok",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Viktor Kowalski",
+  "is_still_participant": true,
+  "thread_path": "inbox/viktorkowalski_2284909951363047",
+  "magic_words": []
+}

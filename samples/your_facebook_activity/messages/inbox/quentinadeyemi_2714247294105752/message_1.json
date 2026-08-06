@@ -1,0 +1,30 @@
+{
+  "participants": [
+    {
+      "name": "Quentin Adeyemi"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1541281700606,
+      "content": "wait what happened",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1541277243436,
+      "content": "\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5 let's gooo",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Quentin Adeyemi",
+  "is_still_participant": true,
+  "thread_path": "inbox/quentinadeyemi_2714247294105752",
+  "magic_words": []
+}

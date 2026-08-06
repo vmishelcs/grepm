@@ -1,0 +1,72 @@
+{
+  "participants": [
+    {
+      "name": "Bo Adeyemi"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1647490899578,
+      "content": "should we just meet there instead?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Bo Adeyemi",
+      "timestamp_ms": 1647489436586,
+      "content": "should we just meet there instead?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1647488679795,
+      "content": "na\u00c3\u00afve of me to think it'd be quiet",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1647486090787,
+      "content": "who's bringing the snacks",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1647484636990,
+      "content": "haha nice, what time",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Bo Adeyemi",
+      "timestamp_ms": 1647481022834,
+      "content": "na\u00c3\u00afve of me to think it'd be quiet",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1647479522853,
+      "content": "100% agree \u00e2\u0080\u0094 that's the move \u00f0\u009f\u0091\u008d",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1647477944699,
+      "content": "no worries at all",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Bo Adeyemi",
+  "is_still_participant": true,
+  "thread_path": "inbox/boadeyemi_6628041104101882",
+  "magic_words": []
+}

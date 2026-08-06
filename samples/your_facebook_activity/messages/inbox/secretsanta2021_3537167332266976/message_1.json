@@ -1,0 +1,139 @@
+{
+  "participants": [
+    {
+      "name": "Lucia Yilmaz"
+    },
+    {
+      "name": "Dmitri Nakamura"
+    },
+    {
+      "name": "Hiroshi Whitfield"
+    },
+    {
+      "name": "Dmitri Yilmaz"
+    },
+    {
+      "name": "Kwame Eriksen"
+    },
+    {
+      "name": "Noor Oyelaran"
+    },
+    {
+      "name": "Noor Lindqvist"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Hiroshi Whitfield",
+      "timestamp_ms": 1689139783204,
+      "content": "just landed, heading over now",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Dmitri Yilmaz",
+      "timestamp_ms": 1689136256466,
+      "content": "na\u00c3\u00afve of me to think it'd be quiet",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Noor Lindqvist",
+      "timestamp_ms": 1689134982739,
+      "content": "omw",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1689129972583,
+      "content": "running about ten minutes late sorry",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Kwame Eriksen",
+      "timestamp_ms": 1689128891665,
+      "content": "d\u00c3\u00a9j\u00c3\u00a0 vu honestly",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Hiroshi Whitfield",
+      "timestamp_ms": 1689126897115,
+      "content": "should we just meet there instead?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Noor Lindqvist",
+      "timestamp_ms": 1689122299162,
+      "content": "that works for me",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Kwame Eriksen",
+      "timestamp_ms": 1689121614978,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Kwame Eriksen",
+      "timestamp_ms": 1689117996806,
+      "content": "can you send me the address?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Kwame Eriksen",
+      "timestamp_ms": 1689115310347,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Dmitri Nakamura",
+      "timestamp_ms": 1689114826622,
+      "content": "100% agree \u00e2\u0080\u0094 that's the move \u00f0\u009f\u0091\u008d",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1689112416668,
+      "content": "no worries at all",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Noor Lindqvist",
+      "timestamp_ms": 1689107875789,
+      "content": "running about ten minutes late sorry",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Kwame Eriksen",
+      "timestamp_ms": 1689102795225,
+      "content": "did you see my last message?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Dmitri Yilmaz",
+      "timestamp_ms": 1689098201911,
+      "content": "who's bringing the snacks",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Secret Santa 2021",
+  "is_still_participant": true,
+  "thread_path": "inbox/secretsanta2021_3537167332266976",
+  "magic_words": []
+}

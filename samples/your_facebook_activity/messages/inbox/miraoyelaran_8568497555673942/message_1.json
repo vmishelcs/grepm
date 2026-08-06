@@ -1,0 +1,86 @@
+{
+  "participants": [
+    {
+      "name": "Mira Oyelaran"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Mira Oyelaran",
+      "timestamp_ms": 1592863187595,
+      "content": "I'll be there in five",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1592860438670,
+      "content": "let me check and get back to you",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Oyelaran",
+      "timestamp_ms": 1592857468904,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Oyelaran",
+      "timestamp_ms": 1592857082554,
+      "content": "let me check and get back to you",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1592856444804,
+      "content": "100% agree \u00e2\u0080\u0094 that's the move \u00f0\u009f\u0091\u008d",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Oyelaran",
+      "timestamp_ms": 1592853613805,
+      "content": "who's bringing the snacks",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1592848708110,
+      "content": "just landed, heading over now",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1592844465630,
+      "content": "I'm going to have to bail, sorry \u00e2\u0080\u0094 long day",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1592841519020,
+      "content": "rescheduling to next week if that's ok",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1592838152982,
+      "content": "no worries at all",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Mira Oyelaran",
+  "is_still_participant": false,
+  "thread_path": "inbox/miraoyelaran_8568497555673942",
+  "magic_words": []
+}

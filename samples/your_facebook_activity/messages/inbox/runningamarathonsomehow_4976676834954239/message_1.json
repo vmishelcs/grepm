@@ -1,0 +1,80 @@
+{
+  "participants": [
+    {
+      "name": "Anneke Dubois"
+    },
+    {
+      "name": "Hugo Quinn"
+    },
+    {
+      "name": "Yusuf Petrov"
+    },
+    {
+      "name": "Jae Yilmaz"
+    },
+    {
+      "name": "Ren\u00c3\u00a9e Dufour"
+    },
+    {
+      "name": "Diego Ueda"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Ren\u00c3\u00a9e Dufour",
+      "timestamp_ms": 1722792156344,
+      "content": "d\u00c3\u00a9j\u00c3\u00a0 vu honestly",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Yusuf Petrov",
+      "timestamp_ms": 1722787134622,
+      "content": "I'll be there in five",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1722786596032,
+      "content": "the r\u00c3\u00a9sum\u00c3\u00a9 looks great btw",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Anneke Dubois",
+      "timestamp_ms": 1722783125978,
+      "content": "who's bringing the snacks",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Yusuf Petrov",
+      "timestamp_ms": 1722780162846,
+      "content": "the r\u00c3\u00a9sum\u00c3\u00a9 looks great btw",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Hugo Quinn",
+      "timestamp_ms": 1722777183592,
+      "content": "the r\u00c3\u00a9sum\u00c3\u00a9 looks great btw",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1722775955155,
+      "content": "wait what happened",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Running a Marathon Somehow",
+  "is_still_participant": true,
+  "thread_path": "inbox/runningamarathonsomehow_4976676834954239",
+  "magic_words": []
+}

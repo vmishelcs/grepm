@@ -1,0 +1,44 @@
+{
+  "participants": [
+    {
+      "name": "Zo\u00c3\u00ab B\u00c3\u00a4cker"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Zo\u00c3\u00ab B\u00c3\u00a4cker",
+      "timestamp_ms": 1718040717103,
+      "content": "that works for me",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Zo\u00c3\u00ab B\u00c3\u00a4cker",
+      "timestamp_ms": 1718040113498,
+      "content": "caf\u00c3\u00a9 on the corner at 9?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Zo\u00c3\u00ab B\u00c3\u00a4cker",
+      "timestamp_ms": 1718036489178,
+      "content": "I'll be there in five",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Zo\u00c3\u00ab B\u00c3\u00a4cker",
+      "timestamp_ms": 1718035428546,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Zo\u00c3\u00ab B\u00c3\u00a4cker",
+  "is_still_participant": true,
+  "thread_path": "inbox/zoebacker_4835836640460608",
+  "magic_words": []
+}

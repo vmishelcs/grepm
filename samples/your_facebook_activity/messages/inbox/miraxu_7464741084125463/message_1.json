@@ -1,0 +1,37 @@
+{
+  "participants": [
+    {
+      "name": "Mira Xu"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Mira Xu",
+      "timestamp_ms": 1632308474214,
+      "content": "omw",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mira Xu",
+      "timestamp_ms": 1632305510025,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1632303764328,
+      "content": "did anyone grab the tickets?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Mira Xu",
+  "is_still_participant": true,
+  "thread_path": "inbox/miraxu_7464741084125463",
+  "magic_words": []
+}

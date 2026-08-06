@@ -1,0 +1,66 @@
+{
+  "participants": [
+    {
+      "name": "Priyanka Silva"
+    },
+    {
+      "name": "Tariq Silva"
+    },
+    {
+      "name": "Lucia Bernard"
+    },
+    {
+      "name": "Hugo Bernard"
+    },
+    {
+      "name": "Diego Ueda"
+    },
+    {
+      "name": "Amara Adeyemi"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Amara Adeyemi",
+      "timestamp_ms": 1689294639386,
+      "content": "let me check and get back to you",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Priyanka Silva",
+      "timestamp_ms": 1689293675123,
+      "content": "I'm going to have to bail, sorry \u00e2\u0080\u0094 long day",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Priyanka Silva",
+      "timestamp_ms": 1689289006038,
+      "content": "\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5 let's gooo",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Hugo Bernard",
+      "timestamp_ms": 1689287630256,
+      "content": "ugh my wifi's down again",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Hugo Bernard",
+      "timestamp_ms": 1689282384828,
+      "content": "sending the pi\u00c3\u00b1ata pics later \u00f0\u009f\u0098\u00ad",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Potluck Committee",
+  "is_still_participant": true,
+  "thread_path": "inbox/potluckcommittee_4194601796076134",
+  "magic_words": []
+}

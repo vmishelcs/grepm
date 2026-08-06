@@ -1,0 +1,30 @@
+{
+  "participants": [
+    {
+      "name": "Clara Moreau"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Clara Moreau",
+      "timestamp_ms": 1587240388928,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1587236804592,
+      "content": "that works for me",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Clara Moreau",
+  "is_still_participant": true,
+  "thread_path": "inbox/claramoreau_2729005509667453",
+  "magic_words": []
+}

@@ -1,0 +1,111 @@
+{
+  "participants": [
+    {
+      "name": "Hiroshi Vasquez"
+    },
+    {
+      "name": "Priyanka Petrov"
+    },
+    {
+      "name": "Ximena Tanaka"
+    },
+    {
+      "name": "Oscar Xu"
+    },
+    {
+      "name": "Rosa Gonzalez"
+    },
+    {
+      "name": "Dmitri Moreau"
+    },
+    {
+      "name": "Oscar Costa"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Ximena Tanaka",
+      "timestamp_ms": 1670101413963,
+      "content": "100% agree \u00e2\u0080\u0094 that's the move \u00f0\u009f\u0091\u008d",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Oscar Costa",
+      "timestamp_ms": 1670096560554,
+      "content": "sounds good, see you soon!",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Dmitri Moreau",
+      "timestamp_ms": 1670092624644,
+      "content": "na\u00c3\u00afve of me to think it'd be quiet",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1670089598416,
+      "content": "did you see my last message?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Rosa Gonzalez",
+      "timestamp_ms": 1670089198706,
+      "content": "ugh my wifi's down again",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Priyanka Petrov",
+      "timestamp_ms": 1670088001613,
+      "content": "sounds good, see you soon!",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Priyanka Petrov",
+      "timestamp_ms": 1670085680629,
+      "content": "na\u00c3\u00afve of me to think it'd be quiet",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Hiroshi Vasquez",
+      "timestamp_ms": 1670083454872,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Dmitri Moreau",
+      "timestamp_ms": 1670080967445,
+      "content": "sounds good, see you soon!",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Hiroshi Vasquez",
+      "timestamp_ms": 1670078171184,
+      "content": "I'm going to have to bail, sorry \u00e2\u0080\u0094 long day",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Oscar Xu",
+      "timestamp_ms": 1670073794319,
+      "content": "rescheduling to next week if that's ok",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Cabin Trip 2019",
+  "is_still_participant": false,
+  "thread_path": "inbox/cabintrip2019_1951438884504541",
+  "magic_words": []
+}

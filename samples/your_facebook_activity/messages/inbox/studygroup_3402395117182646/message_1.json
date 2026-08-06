@@ -1,0 +1,91 @@
+{
+  "participants": [
+    {
+      "name": "Rosa Oyelaran"
+    },
+    {
+      "name": "Ulla Bernard"
+    },
+    {
+      "name": "Quentin Yilmaz"
+    },
+    {
+      "name": "Mateo Oyelaran"
+    },
+    {
+      "name": "Zara Vasquez"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Quentin Yilmaz",
+      "timestamp_ms": 1522049010519,
+      "content": "running about ten minutes late sorry",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Ulla Bernard",
+      "timestamp_ms": 1522045513093,
+      "content": "she said \u00e2\u0080\u009csee you tomorrow\u00e2\u0080\u009d \u00e2\u0080\u0094 can't wait \u00f0\u009f\u00a5\u00b3",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Quentin Yilmaz",
+      "timestamp_ms": 1522045394511,
+      "content": "no worries at all",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Quentin Yilmaz",
+      "timestamp_ms": 1522043052410,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mateo Oyelaran",
+      "timestamp_ms": 1522039527233,
+      "content": "should we just meet there instead?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Ulla Bernard",
+      "timestamp_ms": 1522035417877,
+      "content": "who's bringing the snacks",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1522031459597,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Mateo Oyelaran",
+      "timestamp_ms": 1522029048213,
+      "content": "I'll be there in five",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1522025865992,
+      "content": "\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5 let's gooo",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Study Group",
+  "is_still_participant": true,
+  "thread_path": "inbox/studygroup_3402395117182646",
+  "magic_words": []
+}
