@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import ConversationList from '$lib/components/ConversationList.svelte';
 	import { describeError } from '$lib/errors';
 	import {
 		activeImport,
@@ -31,12 +32,6 @@
 	}
 
 	const numbers = new Intl.NumberFormat();
-
-	/** `3 Participants: Ada Lovelace, Alan Turing, Grace Hopper` */
-	function participantLabel(names: string[]): string {
-		const noun = names.length === 1 ? 'Participant' : 'Participants';
-		return `${names.length} ${noun}: ${names.join(', ')}`;
-	}
 </script>
 
 {#if error}
@@ -62,18 +57,7 @@
 				</div>
 			</header>
 
-			<ul>
-				{#each conversations as conversation (conversation.id)}
-					<li>
-						<!-- Titles and participant names are export-derived text a
-						     stranger wrote. Rendered as text nodes, never `{@html}`.
-						     See rule 1 in src/CLAUDE.md. -->
-						<span class="title">{conversation.title}</span>
-						<span class="meta">{participantLabel(conversation.participants)}</span>
-						<span class="meta">{numbers.format(conversation.message_count)} messages</span>
-					</li>
-				{/each}
-			</ul>
+			<ConversationList {conversations} />
 		</aside>
 
 		<section>
@@ -184,42 +168,6 @@
 		margin: 0.15rem 0 0;
 		color: var(--text-muted);
 		font-size: 0.75rem;
-	}
-
-	ul {
-		overflow-y: auto;
-		margin: 0;
-		padding: 0.5rem;
-		list-style: none;
-	}
-
-	li {
-		display: flex;
-		flex-direction: column;
-		gap: 0.1rem;
-		border-radius: 8px;
-		padding: 0.6rem 0.75rem;
-	}
-
-	li + li {
-		margin-top: 0.15rem;
-	}
-
-	.title {
-		overflow: hidden;
-		font-weight: 600;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	/* One line each, clipped with an ellipsis — a long participant list must
-	   not be allowed to set the sidebar's width. */
-	.meta {
-		overflow: hidden;
-		color: var(--text-muted);
-		font-size: 0.78rem;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
 	section {

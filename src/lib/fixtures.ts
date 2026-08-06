@@ -66,6 +66,29 @@ export const sampleConversations: ConversationSummary[] = [
 	}
 ];
 
+/**
+ * A library big enough that rendering every row would be the problem the
+ * windowed list exists to avoid. Generated rather than written out, since only
+ * the count and the ordering matter here — the awkward individual cases are
+ * {@link sampleConversations}'s job.
+ *
+ * Every tenth conversation has no messages, so a caller gets the `N/A` row
+ * without having to construct one.
+ */
+export function manyConversations(count: number): ConversationSummary[] {
+	return Array.from({ length: count }, (_, index) => {
+		const empty = index % 10 === 9;
+		return {
+			id: 1000 + index,
+			title: `Conversation ${index + 1}`,
+			participants: ['Ada Lovelace', `Correspondent ${index + 1}`],
+			message_count: empty ? 0 : (index + 1) * 7,
+			// Descending, matching the order the query returns them in.
+			last_message_ms: empty ? null : Date.UTC(2021, 4, 12, 9, 34) - index * 3_600_000
+		};
+	});
+}
+
 /** A library with something in it, for the launch screen's list. */
 export const sampleImports: ImportEntry[] = [
 	{

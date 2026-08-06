@@ -50,6 +50,38 @@ describe('the reader', () => {
 		await expect.element(page.getByText('1,842 messages')).toBeInTheDocument();
 	});
 
+	it('shows when the last message was sent, in local time', async () => {
+		stubOpenImport();
+
+		render(Page);
+
+		// The fixture's newest message is 2021-05-12 09:34 UTC. Asserting the
+		// browser's own rendering of that instant rather than a fixed string,
+		// since the test runner's zone is not the fixture author's.
+		const expected = new Intl.DateTimeFormat(undefined, {
+			year: 'numeric',
+			month: 'short',
+			day: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit',
+			hourCycle: 'h23',
+			timeZoneName: 'short'
+		}).format(new Date(sampleConversations[0].last_message_ms!));
+
+		await expect.element(page.getByText(`Last message: ${expected}`)).toBeInTheDocument();
+	});
+
+	it('says N/A rather than dropping the line when there are no messages', async () => {
+		stubOpenImport([{ ...sampleConversations[0], message_count: 0, last_message_ms: null }]);
+
+		render(Page);
+
+		await expect.element(page.getByText('0 messages')).toBeInTheDocument();
+		// Kept rather than omitted so every row is the same height — the
+		// windowed list sizes its spacers from a single measured row.
+		await expect.element(page.getByText('Last message: N/A')).toBeInTheDocument();
+	});
+
 	it('says Participant, singular, for a conversation with one', async () => {
 		stubOpenImport();
 

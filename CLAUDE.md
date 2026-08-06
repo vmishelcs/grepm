@@ -76,6 +76,17 @@ is only the Tauri wrapper around it.
   message files. A finished import can end at `done < total`, so treat the call
   returning — not `done == total` — as completion.
 
+## Don't page `db::queries::conversations`
+
+It looks like the obvious fix for a large library, and it isn't: the
+`ORDER BY max(m.timestamp_ms)` over a `GROUP BY` makes SQLite aggregate and
+sort every message before it can apply an `OFFSET`, so each page would repeat a
+full scan and scrolling would get *slower* as the export grew. The sidebar
+fetches every summary once and windows the DOM instead — see `src/CLAUDE.md`
+§9. Paging would first need `last_message_ms` and a deduplicated
+`message_count` stored on the `conversations` row at import time, so the order
+comes from an index rather than an aggregate.
+
 ## Commands
 
 ```sh

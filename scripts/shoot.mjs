@@ -39,7 +39,15 @@ const SHOTS = [
 		path: '/',
 		prepare: (page) => page.getByRole('button', { name: 'More options for Work chats' }).click()
 	},
-	{ name: 'opened', path: '/opened' }
+	{ name: 'opened', path: '/opened' },
+	{
+		// A thousand conversations, of which only ~3 screens are ever mounted.
+		// Should be indistinguishable from the shot above.
+		name: 'opened-many',
+		path: '/opened',
+		prepare: (page) => page.evaluate(() => window.scrollTo(0, 0)),
+		conversations: 'many'
+	}
 ];
 
 const VIEWPORTS = [
@@ -69,7 +77,9 @@ function installIpcStub() {
 					stats: { message_count: 12431, conversation_count: 47 }
 				};
 			case 'list_conversations':
-				return fixtures.sampleConversations;
+				return window.__GREPM_MANY_CONVERSATIONS__
+					? fixtures.manyConversations(1000)
+					: fixtures.sampleConversations;
 			// The folder picker crosses the same bridge as any command.
 			case 'plugin:dialog|open':
 				return '/home/vm/Downloads/facebook-export';
@@ -128,6 +138,11 @@ try {
 				await page.addInitScript((imports) => {
 					window.__GREPM_IMPORTS__ = imports;
 				}, shot.imports);
+			}
+			if (shot.conversations === 'many') {
+				await page.addInitScript(() => {
+					window.__GREPM_MANY_CONVERSATIONS__ = true;
+				});
 			}
 			await page.goto(`${ORIGIN}${shot.path}`, { waitUntil: 'networkidle' });
 			await shot.prepare?.(page);

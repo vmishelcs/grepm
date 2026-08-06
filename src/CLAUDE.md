@@ -138,6 +138,26 @@ once by `+layout.svelte`. Use the tokens; don't hard-code hex in a component.
   `<button>` that does nothing promises a keyboard or screen-reader user
   something the screen can't keep. Make them interactive when selection lands.
 
+`ConversationList.svelte` is **windowed**: it mounts about three screens of
+rows and swaps them as you scroll, with spacer `<li>`s standing in for the rest
+so the scrollbar still spans the whole list and nothing shifts when rows are
+dropped. Measured at 5,000 conversations: 15 rows in the DOM, not 5,000. Two
+things it depends on, which are easy to break by accident:
+
+- **Every row is exactly the same height.** That's why the last-message line
+  says `Last message: N/A` rather than being omitted, why each `.meta` line is
+  `nowrap`, and why the row margin is a uniform `margin-bottom` rather than
+  `li + li` — which would skip the first row and drift the spacers by one
+  margin per partition.
+- **Something above it must bound its height.** A flex item defaults to
+  `min-height: auto` and will happily grow to fit 5,000 rows instead of
+  scrolling, so the list sets `min-height: 0`. This looks fine with five
+  conversations and fails silently with five thousand.
+
+The data is *not* paged — one `list_conversations` call still fetches every
+summary. Paging that query would make things worse, not better: see the note in
+the root `CLAUDE.md`.
+
 Shared pieces are in `$lib/components`. Anything drawn — the `...` glyph, the
 empty-pane bubble — is inline SVG, not a bitmap and not a font glyph: sharp at
 any density, no asset to bundle, and it takes `fill` from the palette tokens.
