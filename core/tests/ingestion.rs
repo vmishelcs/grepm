@@ -410,17 +410,22 @@ fn persists_each_attachment_row_with_its_kind_uri_and_creation_timestamp() {
         .collect::<rusqlite::Result<_>>()
         .unwrap();
 
-    assert_eq!(
-        attachments,
-        vec![
-            (2000, "photos".to_string(), Some("photos/1.jpg".to_string()), Some(1712345678)),
-            (3000, "videos".to_string(), Some("videos/1.mp4".to_string()), Some(1712345679)),
-            (4000, "audio_files".to_string(), Some("audio/1.aac".to_string()), None),
-            (5000, "gifs".to_string(), Some("gifs/1.gif".to_string()), None),
-            (6000, "photos".to_string(), Some("photos/2.jpg".to_string()), Some(1712345680)),
-            (6000, "photos".to_string(), Some("photos/3.jpg".to_string()), Some(1712345681)),
-        ]
-    );
+    // Hand-aligned as a table — one row per expected attachment, columns
+    // matching the SELECT above — so the two same-millisecond photo rows and
+    // the two with no creation_timestamp are visible at a glance. rustfmt
+    // would put every field on its own line, turning six comparable rows
+    // into thirty-odd.
+    #[rustfmt::skip]
+    let expected = vec![
+        (2000, "photos".to_string(),      Some("photos/1.jpg".to_string()), Some(1712345678)),
+        (3000, "videos".to_string(),      Some("videos/1.mp4".to_string()), Some(1712345679)),
+        (4000, "audio_files".to_string(), Some("audio/1.aac".to_string()),  None),
+        (5000, "gifs".to_string(),        Some("gifs/1.gif".to_string()),   None),
+        (6000, "photos".to_string(),      Some("photos/2.jpg".to_string()), Some(1712345680)),
+        (6000, "photos".to_string(),      Some("photos/3.jpg".to_string()), Some(1712345681)),
+    ];
+
+    assert_eq!(attachments, expected);
 }
 
 #[test]

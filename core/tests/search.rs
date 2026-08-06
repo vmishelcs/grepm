@@ -441,7 +441,14 @@ fn run_applies_filters_and_sort_end_to_end() {
         participant: Some("Alice".to_string()),
         ..Default::default()
     };
-    let results = search::run(&conn, "coffee", &filters, SortOrder::Oldest, Page::default()).unwrap();
+    let results = search::run(
+        &conn,
+        "coffee",
+        &filters,
+        SortOrder::Oldest,
+        Page::default(),
+    )
+    .unwrap();
 
     // Alice's two "coffee" messages, oldest first.
     let timestamps: Vec<i64> = results.hits.iter().map(|hit| hit.timestamp_ms).collect();
