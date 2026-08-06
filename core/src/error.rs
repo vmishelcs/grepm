@@ -30,6 +30,16 @@ pub enum Error {
          ({supported}); it was probably created by a newer version of the app"
     )]
     UnsupportedSchemaVersion { found: i32, supported: i32 },
+
+    /// Distinct from [`Error::UnsupportedSchemaVersion`]: that one means "too
+    /// new to read", which has an obvious remedy (update the app). A version
+    /// no release could ever have written means the file is damaged or isn't
+    /// ours, so it needs its own message.
+    #[error(
+        "database schema version {found} is not a valid version; the file is \
+         corrupt or was not created by this app"
+    )]
+    InvalidSchemaVersion { found: i32 },
 }
 
 #[cfg(test)]

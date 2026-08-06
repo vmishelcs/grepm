@@ -4,6 +4,9 @@ use rusqlite::Connection;
 
 use crate::{Error, Result};
 
+/// The schema, as an append-only list of migration steps: index `n` takes a
+/// database from `user_version` `n` to `n + 1`. Never edit or reorder an
+/// existing entry — a shipped database has already run it — only append.
 pub const MIGRATIONS: &[&str] = &[r#"
     CREATE TABLE IF NOT EXISTS conversations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +77,11 @@ pub const MIGRATIONS: &[&str] = &[r#"
     );
     "#];
 
-pub const LATEST_VERSION: i32 = 1;
+/// The schema version a fully migrated database sits at — one step per
+/// entry in [`MIGRATIONS`], so adding a migration is a one-place change
+/// that can't be left half-done by forgetting to bump a hand-written
+/// constant.
+pub const LATEST_VERSION: i32 = MIGRATIONS.len() as i32;
 
 pub fn open(path: &Path) -> Result<Connection> {
     let mut conn = Connection::open(path)?;
@@ -92,6 +99,16 @@ pub fn configure(conn: &Connection) -> Result<()> {
 
 pub fn migrate(conn: &mut Connection) -> Result<()> {
     let current_version: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+
+    // `user_version` is a signed pragma, so a corrupt or hand-edited file
+    // can hold a negative value that no build of this app ever wrote.
+    // Refusing it here also keeps `version as usize` below from wrapping to
+    // a huge index and panicking on MIGRATIONS.
+    if current_version < 0 {
+        return Err(Error::InvalidSchemaVersion {
+            found: current_version,
+        });
+    }
 
     // A version beyond LATEST_VERSION means the database was created by a
     // newer build (or isn't ours at all). Proceeding would mean reading and
@@ -239,6 +256,23 @@ mod tests {
                     if found == LATEST_VERSION + 1 && supported == LATEST_VERSION
             ),
             "a user_version beyond LATEST_VERSION should be refused, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn migrate_rejects_a_negative_user_version_instead_of_panicking() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        configure(&conn).unwrap();
+        // No build writes this; only a corrupt or hand-tampered file has it.
+        // Unguarded, `version as usize` would wrap and index MIGRATIONS far
+        // out of bounds.
+        conn.pragma_update(None, "user_version", -1).unwrap();
+
+        let err = migrate(&mut conn).unwrap_err();
+
+        assert!(
+            matches!(err, Error::InvalidSchemaVersion { found } if found == -1),
+            "a negative user_version should be refused as invalid, got: {err:?}"
         );
     }
 
