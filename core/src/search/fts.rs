@@ -38,10 +38,17 @@ impl<'a> SearchIndex for FtsIndex<'a> {
 
         // bm25() scores lower for a better match, so ascending order ranks
         // the best matches first; the other two orders are chronological.
+        //
+        // Every arm ends in `m.id`, because none of the three leading
+        // expressions is unique: same-millisecond messages are a first-class
+        // case here (see the dedup index), and bm25 ties are routine for
+        // short chat messages. Each page is a separate query, so without a
+        // total tiebreaker SQLite could order tied rows differently per page
+        // and a message would show up twice or not at all.
         let order_by = match query.sort {
-            SortOrder::Relevance => "bm25(messages_fts) ASC",
-            SortOrder::Latest => "m.timestamp_ms DESC",
-            SortOrder::Oldest => "m.timestamp_ms ASC",
+            SortOrder::Relevance => "bm25(messages_fts) ASC, m.id DESC",
+            SortOrder::Latest => "m.timestamp_ms DESC, m.id DESC",
+            SortOrder::Oldest => "m.timestamp_ms ASC, m.id ASC",
         };
 
         // The total count and the page of hits are two separate reads; the
@@ -445,6 +452,103 @@ mod tests {
             vec![more_relevant, less_relevant],
             "the message mentioning 'coffee' more often should rank first under BM25"
         );
+    }
+
+    #[test]
+    fn search_breaks_timestamp_ties_by_message_id() {
+        let conn = migrated_connection();
+        let team = insert_conversation(&conn, "Team Chat", "inbox/team");
+        let alice = insert_participant(&conn, team, "Alice");
+        // All four land in the same millisecond, so `timestamp_ms` alone
+        // leaves the order up to SQLite.
+        let ids: Vec<i64> = (0..4)
+            .map(|i| insert_message(&conn, team, alice, 1000, &format!("coffee {i}")))
+            .collect();
+        schema::populate_fts(&conn).unwrap();
+
+        let index = FtsIndex::new(&conn);
+        let latest = index
+            .search(
+                &sorted_query("coffee", UiFilters::default(), SortOrder::Latest),
+                Page::default(),
+            )
+            .unwrap();
+        let oldest = index
+            .search(
+                &sorted_query("coffee", UiFilters::default(), SortOrder::Oldest),
+                Page::default(),
+            )
+            .unwrap();
+
+        let latest_ids: Vec<i64> = latest.hits.iter().map(|h| h.message_id).collect();
+        let oldest_ids: Vec<i64> = oldest.hits.iter().map(|h| h.message_id).collect();
+        assert_eq!(latest_ids, vec![ids[3], ids[2], ids[1], ids[0]]);
+        assert_eq!(oldest_ids, ids);
+    }
+
+    #[test]
+    fn search_breaks_relevance_ties_by_message_id() {
+        let conn = migrated_connection();
+        let team = insert_conversation(&conn, "Team Chat", "inbox/team");
+        let alice = insert_participant(&conn, team, "Alice");
+        // One "coffee" each in equal-length messages scores identically
+        // under bm25 (the trailing word is not a query term), so relevance
+        // alone leaves the order up to SQLite. The bodies still differ so
+        // the dedup index doesn't reject them.
+        let ids: Vec<i64> = ["alpha", "bravo", "delta", "gamma"]
+            .iter()
+            .map(|word| insert_message(&conn, team, alice, 1000, &format!("coffee {word}")))
+            .collect();
+        schema::populate_fts(&conn).unwrap();
+
+        let index = FtsIndex::new(&conn);
+        let results = index
+            .search(
+                &sorted_query("coffee", UiFilters::default(), SortOrder::Relevance),
+                Page::default(),
+            )
+            .unwrap();
+
+        let hit_ids: Vec<i64> = results.hits.iter().map(|h| h.message_id).collect();
+        assert_eq!(hit_ids, vec![ids[3], ids[2], ids[1], ids[0]]);
+    }
+
+    #[test]
+    fn paging_through_tied_results_visits_every_hit_exactly_once() {
+        let conn = migrated_connection();
+        let team = insert_conversation(&conn, "Team Chat", "inbox/team");
+        let alice = insert_participant(&conn, team, "Alice");
+        // Same millisecond and same bm25 score: every ordering expression
+        // ties, so only the `m.id` tiebreaker separates these rows.
+        let ids: Vec<i64> = ["alpha", "bravo", "delta", "gamma", "hotel", "india"]
+            .iter()
+            .map(|word| insert_message(&conn, team, alice, 1000, &format!("coffee {word}")))
+            .collect();
+        schema::populate_fts(&conn).unwrap();
+
+        // Each page is its own query and its own read transaction, so this
+        // only holds if the ordering is total.
+        let index = FtsIndex::new(&conn);
+        let paged: Vec<i64> = (0..3)
+            .flat_map(|page| {
+                index
+                    .search(
+                        &sorted_query("coffee", UiFilters::default(), SortOrder::Relevance),
+                        Page {
+                            limit: 2,
+                            offset: page * 2,
+                        },
+                    )
+                    .unwrap()
+                    .hits
+                    .into_iter()
+                    .map(|hit| hit.message_id)
+            })
+            .collect();
+
+        let mut sorted = paged.clone();
+        sorted.sort_unstable();
+        assert_eq!(sorted, ids, "every hit should appear on exactly one page");
     }
 
     #[test]
