@@ -5,24 +5,14 @@
 //! actually use `grepm_core`.
 
 use std::fs;
-use std::path::Path;
 
 use rusqlite::Connection;
 use tempfile::tempdir;
 
-use grepm_core::db;
 use grepm_core::ingest::import_export;
 
-fn write_file(path: &Path, contents: &str) {
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(path, contents).unwrap();
-}
-
-/// Opens a real on-disk SQLite database (as opposed to the in-memory
-/// databases the unit tests use), migrated and ready to import into.
-fn open_db(dir: &Path) -> Connection {
-    db::schema::open(&dir.join("grepm.sqlite3")).unwrap()
-}
+mod common;
+use common::{open_db, write_file};
 
 #[test]
 fn imports_multiple_conversations_including_a_group_chat() {
@@ -579,23 +569,6 @@ fn a_stray_file_directly_in_the_inbox_is_skipped_not_treated_as_a_conversation()
     );
 }
 
-/// Makes `dir` unreadable and returns a guard that restores its permissions
-/// on drop, so the tempdir can still be cleaned up if an assertion panics.
-#[cfg(unix)]
-fn make_unreadable(dir: &Path) -> impl Drop + '_ {
-    use std::os::unix::fs::PermissionsExt;
-
-    struct RestorePermissions<'a>(&'a Path);
-    impl Drop for RestorePermissions<'_> {
-        fn drop(&mut self) {
-            let _ = fs::set_permissions(self.0, fs::Permissions::from_mode(0o755));
-        }
-    }
-
-    fs::set_permissions(dir, fs::Permissions::from_mode(0o000)).unwrap();
-    RestorePermissions(dir)
-}
-
 #[cfg(unix)]
 #[test]
 fn an_unreadable_conversation_folder_surfaces_as_an_import_error() {
@@ -610,12 +583,11 @@ fn an_unreadable_conversation_folder_surfaces_as_an_import_error() {
         .join("inbox")
         .join("locked_convo");
     fs::create_dir_all(&locked).unwrap();
-    let _guard = make_unreadable(&locked);
-    if fs::read_dir(&locked).is_ok() {
-        // Running as root, where mode 000 is still readable; the scenario
-        // can't be constructed, so there's nothing to test.
+    // `None` means the tests are running as root, where mode 000 is still
+    // readable: the scenario can't be constructed, so skip.
+    let Some(_guard) = common::make_unreadable(&locked) else {
         return;
-    }
+    };
 
     let mut conn = open_db(db_dir.path());
     let result = import_export(&mut conn, export.path());

@@ -193,12 +193,8 @@ fn message_number(path: &Path) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_util::{make_unreadable, write_file};
     use tempfile::tempdir;
-
-    fn write_file(path: &Path, contents: &str) {
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, contents).unwrap();
-    }
 
     fn make_dir(path: &Path) {
         fs::create_dir_all(path).unwrap();
@@ -268,36 +264,17 @@ mod tests {
         assert!(find_messages_root(export.path()).is_err());
     }
 
-    /// Makes `dir` unreadable and returns a guard that restores the
-    /// permissions on drop, so the tempdir can be cleaned up even if the
-    /// test's assertions panic first.
-    #[cfg(unix)]
-    fn make_unreadable(dir: &Path) -> impl Drop + '_ {
-        use std::os::unix::fs::PermissionsExt;
-
-        struct RestorePermissions<'a>(&'a Path);
-        impl Drop for RestorePermissions<'_> {
-            fn drop(&mut self) {
-                let _ = fs::set_permissions(self.0, fs::Permissions::from_mode(0o755));
-            }
-        }
-
-        fs::set_permissions(dir, fs::Permissions::from_mode(0o000)).unwrap();
-        RestorePermissions(dir)
-    }
-
     #[cfg(unix)]
     #[test]
     fn find_messages_root_reports_a_walk_error_instead_of_a_misleading_not_found() {
         let export = tempdir().unwrap();
         let locked = export.path().join("locked");
         make_dir(&locked);
-        let _guard = make_unreadable(&locked);
-        if fs::read_dir(&locked).is_ok() {
-            // Running as root, where mode 000 is still readable; the
-            // scenario can't be constructed, so there's nothing to test.
+        // `None` means the tests are running as root, where mode 000 is
+        // still readable: the scenario can't be constructed, so skip.
+        let Some(_guard) = make_unreadable(&locked) else {
             return;
-        }
+        };
 
         let err = find_messages_root(export.path()).unwrap_err();
 

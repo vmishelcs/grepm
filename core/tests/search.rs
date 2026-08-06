@@ -9,13 +9,9 @@
 //! '%text%'` scan) would give different results, which is what these are
 //! checking for.
 
-use std::fs;
-use std::path::Path;
-
 use rusqlite::Connection;
 use tempfile::{tempdir, TempDir};
 
-use grepm_core::db;
 use grepm_core::ingest::import_export;
 use grepm_core::search::fts::FtsIndex;
 use grepm_core::search::{
@@ -23,10 +19,8 @@ use grepm_core::search::{
     MATCH_START,
 };
 
-fn write_file(path: &Path, contents: &str) {
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(path, contents).unwrap();
-}
+mod common;
+use common::{open_db, write_file};
 
 /// Imports a small, deliberately varied export into a real on-disk database:
 /// several conversations, several participants, and messages chosen so that
@@ -106,7 +100,7 @@ fn seeded_db() -> (TempDir, Connection) {
         }"#,
     );
 
-    let mut conn = db::schema::open(&db_dir.path().join("grepm.sqlite3")).unwrap();
+    let mut conn = open_db(db_dir.path());
     import_export(&mut conn, export.path()).unwrap();
 
     (db_dir, conn)
@@ -140,7 +134,7 @@ fn db_from_conversation(message_json: &str) -> (TempDir, Connection) {
         message_json,
     );
 
-    let mut conn = db::schema::open(&db_dir.path().join("grepm.sqlite3")).unwrap();
+    let mut conn = open_db(db_dir.path());
     import_export(&mut conn, export.path()).unwrap();
     (db_dir, conn)
 }

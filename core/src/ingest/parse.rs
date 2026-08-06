@@ -191,11 +191,7 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
-
-    fn write_file(path: &Path, contents: &str) {
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, contents).unwrap();
-    }
+    use crate::test_util::write_file;
 
     #[test]
     fn parse_conversation_file_parses_a_file() {

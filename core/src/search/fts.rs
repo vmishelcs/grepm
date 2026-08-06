@@ -125,13 +125,7 @@ mod tests {
     use super::*;
     use crate::db::schema;
     use crate::search::UiFilters;
-
-    fn migrated_connection() -> Connection {
-        let mut conn = Connection::open_in_memory().unwrap();
-        schema::configure(&conn).unwrap();
-        schema::migrate(&mut conn).unwrap();
-        conn
-    }
+    use crate::test_util::migrated_connection;
 
     fn insert_conversation(conn: &Connection, title: &str, thread_path: &str) -> i64 {
         conn.query_row(

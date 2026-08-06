@@ -25,25 +25,10 @@ pub fn import_export(conn: &mut Connection, export_root: impl AsRef<Path>) -> Re
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::path::Path;
-
     use tempfile::tempdir;
 
     use super::*;
-    use crate::db::schema;
-
-    fn migrated_connection() -> Connection {
-        let mut conn = Connection::open_in_memory().unwrap();
-        schema::configure(&conn).unwrap();
-        schema::migrate(&mut conn).unwrap();
-        conn
-    }
-
-    fn write_file(path: &Path, contents: &str) {
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, contents).unwrap();
-    }
+    use crate::test_util::{migrated_connection, write_file};
 
     const MESSAGE_ALICE_AND_BOB: &str = r#"{
         "participants": [{"name": "Alice"}, {"name": "Bob"}],

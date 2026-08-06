@@ -145,13 +145,7 @@ pub fn populate_fts(conn: &Connection) -> Result<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn migrated_connection() -> Connection {
-        let mut conn = Connection::open_in_memory().unwrap();
-        configure(&conn).unwrap();
-        migrate(&mut conn).unwrap();
-        conn
-    }
+    use crate::test_util::migrated_connection;
 
     fn table_names(conn: &Connection) -> Vec<String> {
         conn.prepare(

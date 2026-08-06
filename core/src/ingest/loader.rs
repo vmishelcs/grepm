@@ -60,25 +60,12 @@ pub fn load_messages(
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
     use tempfile::tempdir;
 
     use super::*;
-    use crate::db::schema;
-
-    fn migrated_connection() -> Connection {
-        let mut conn = Connection::open_in_memory().unwrap();
-        schema::configure(&conn).unwrap();
-        schema::migrate(&mut conn).unwrap();
-        conn
-    }
-
-    fn write_file(path: &Path, contents: &str) {
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, contents).unwrap();
-    }
+    use crate::test_util::{migrated_connection, write_file};
 
     fn conversation_dir(folder: PathBuf, message_files: Vec<PathBuf>) -> ConversationDir {
         ConversationDir {
