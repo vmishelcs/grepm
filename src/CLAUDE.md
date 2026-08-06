@@ -63,8 +63,11 @@ side: one boundary, one place to stub in tests.
 
 That covers `@tauri-apps/api/event` and the dialog plugin too — both reach Rust
 over the same bridge, so both are wrapped here rather than called from a
-component. A useful consequence: `mockIPC` stubs the folder picker as well, as
-the command `plugin:dialog|open`.
+component. A useful consequence: `mockIPC` stubs the dialogs as well. The
+folder picker is `plugin:dialog|open`; `confirm()` is **`plugin:dialog|message`**,
+and it decides the answer by comparing the reply to the ok label it sent as
+`{ buttons: { OkCancelCustom: [ok, cancel] } }` — so a stub that "confirms"
+echoes that first label back.
 
 ## 5. The type mirrors are hand-maintained
 
@@ -100,11 +103,14 @@ no component:
 ```ts
 afterEach(clearMocks);
 
-mockIPC((command, args) => {
-	if (command !== 'search') throw new Error(`unexpected command: ${command}`);
-	return sampleResults;
+mockIPC((command) => {
+	if (command !== 'list_imports') throw new Error(`unexpected command: ${command}`);
+	return sampleImports;
 });
 ```
+
+Throwing on unexpected commands is the point: a screen that quietly gained a
+call would otherwise pass on a stub that never answers it.
 
 Shared sample data lives in `src/lib/fixtures.ts`, and is the same data the
 screenshot script uses.
@@ -118,5 +124,41 @@ when you add a screen.
 ## 8. Colours come from `src/app.css`
 
 The palette approximates Messenger's dark mode and lives in one place as custom
-properties (`--surface`, `--accent`, `--text-muted`, …), imported once by
-`+layout.svelte`. Use the tokens; don't hard-code hex in a component.
+properties (`--surface`, `--accent`, `--text-muted`, `--danger`, …), imported
+once by `+layout.svelte`. Use the tokens; don't hard-code hex in a component.
+
+## 9. The screens
+
+- `/` — the launch screen. `Import Data` centred above an `IMPORTS` panel of
+  tiles, the shape MySQL Workbench uses. Each tile has a `...` button opening a
+  menu with `Delete Import`. Three phases live here (browsing, naming,
+  importing) as a `Phase` union rather than a pile of booleans.
+- `/opened` — the reader. A sidebar of conversations beside a pane that so far
+  only says nothing is selected. **Its rows are deliberately not buttons**: a
+  `<button>` that does nothing promises a keyboard or screen-reader user
+  something the screen can't keep. Make them interactive when selection lands.
+
+Shared pieces are in `$lib/components`. Anything drawn — the `...` glyph, the
+empty-pane bubble — is inline SVG, not a bitmap and not a font glyph: sharp at
+any density, no asset to bundle, and it takes `fill` from the palette tokens.
+
+## 10. Layout facts that cost time to rediscover
+
+All three were measured in a real browser, not eyeballed. Re-measure rather
+than reason about them from scratch.
+
+- **The window must not scroll when there's nothing to scroll.** A full-height
+  element with padding overflows by exactly that padding unless `box-sizing`
+  is `border-box` — which `app.css` sets globally for this reason. Use
+  `min-height: 100dvh` so genuinely tall content can still scroll, and let long
+  lists scroll inside their own container. `page.svelte.test.ts` asserts this.
+- **`font-weight` above 700 usually does nothing.** The system font stack ships
+  regular and bold only, so 600–900 all render identically (measured: same
+  string, same 89.7px at every weight), and `font-synthesis: none` rules out a
+  faux-bold fallback. To thicken text, use `-webkit-text-stroke` — supported by
+  every webview Tauri targets.
+- **Centring a label needs `line-height: normal`.** With the `1.5` inherited
+  from `:root` a button label sat 1.19px high, and at `1` it sat 0.8px high:
+  half-leading is split evenly around a glyph box that isn't itself symmetric.
+  At `normal` the line box *is* the glyph box, so padding centres it exactly —
+  and that follows the font's metrics rather than a magic pixel nudge.

@@ -19,8 +19,10 @@ samples/     a small synthetic export, used by manual testing and by
              `src-tauri/src/library.rs`'s import tests.
 ```
 
-The engine is finished and heavily tested; the app layer has its first slice —
-importing an export and opening one again — but no search UI yet.
+The engine is finished and heavily tested. The app layer now imports an export
+with live progress, lists and reopens past imports, deletes one, and shows an
+opened import's conversations in a sidebar. There is no search UI yet — that is
+the next slice, and `src/routes/opened/` is where it lands.
 
 ## The library
 
@@ -35,6 +37,44 @@ Ids are opaque, so a user's chosen name never becomes a filename and never has
 to satisfy a filesystem's rules. One import per file, which also sidesteps
 `KNOWN_ISSUES.md` §9 (`populate_fts` isn't idempotent, so re-importing into an
 existing database is unsafe).
+
+Deleting an import removes its database, the `-wal`/`-shm` sidecars WAL mode
+leaves beside it, and its index entry — and closes the connection first if that
+import was the open one. It never touches `source_path`: the Facebook export is
+the user's own data, which grepm only ever read.
+
+## The command surface
+
+Everything in `src-tauri/src/commands.rs`, registered in `lib.rs`:
+
+| command              | does                                                           |
+| -------------------- | -------------------------------------------------------------- |
+| `list_imports`       | reads `index.json`; `[]` on first launch                       |
+| `start_import`       | async; validates, ingests on a blocking thread, emits progress  |
+| `open_import`        | opens the database into managed state                          |
+| `active_import`      | the open import plus row counts read live                      |
+| `list_conversations` | conversations in the open import                               |
+| `delete_import`      | removes an import's data                                       |
+
+Managed state holds the imports folder and the open `Connection`, each behind a
+`Mutex`. **Take `library` before `active`** — every command touching both does,
+and the reverse order is a deadlock waiting for two of them to land together.
+
+The long-running work is `import_into_library`, a plain function over a
+directory and a progress callback. Keeping it out of the command itself is what
+makes the whole import path testable without a running window; `start_import`
+is only the Tauri wrapper around it.
+
+## Two counts that look interchangeable and aren't
+
+- `conversations.message_count` is the total the export **claimed**, summed
+  before duplicate messages were dropped. `db::queries::conversations` reports
+  the rows **actually stored**, which is what a search over that conversation
+  could return. Prefer the stored count anywhere a user sees a number.
+- `ingest::Progress.total` is an **upper bound**: it counts folders under
+  `messages/inbox` without opening them, while the import skips any holding no
+  message files. A finished import can end at `done < total`, so treat the call
+  returning — not `done == total` — as completion.
 
 ## Commands
 
