@@ -62,11 +62,11 @@ performance headroom for large exports.
 |---|---|---|---|
 | C1 | High (acknowledged) | ingest/db | `message_count` inflates on every re-import |
 | C2 | High (acknowledged) | ingest/fts | `populate_fts` appends duplicate rowids; correctness rests on undocumented FTS5 behavior |
-| C3 | Medium | db | `NULL` title/thread_path defeats the conversation upsert |
+| C3 | ~~Medium~~ **Addressed** | db | `NULL` title/thread_path defeats the conversation upsert |
 | C4 | Medium (acknowledged) | ingest | Reactions parsed but dropped; note on the future dedup story |
 | A1 | ~~Medium~~ **Addressed** | search | No deterministic tiebreaker in `ORDER BY` → unstable pagination |
 | A2 | ~~Medium~~ **Addressed** | db API | `insert_participant` + `link_conversation_participant` must be called in lockstep, nothing enforces it |
-| A3 | Low | db | `INSERT OR IGNORE` swallows more than dedup conflicts |
+| A3 | ~~Low~~ **Addressed** | db | `INSERT OR IGNORE` swallows more than dedup conflicts |
 | A4 | ~~Low~~ **Addressed** | db | Negative `user_version` panics `migrate` |
 | A5 | ~~Low~~ **Addressed** | scan | `count` and `scan` disagree about symlinked conversation dirs |
 | A6 | Low | search | Snippet delimiters `[`/`]` collide with literal brackets |
@@ -175,7 +175,38 @@ work `populate_fts` already does. If incremental indexing is ever needed,
 the supported route is `content=''`-style delete commands or triggers, not
 re-INSERTs.
 
-### C3 — `NULL` title/thread_path defeats the conversation upsert — **Medium**
+### C3 — `NULL` title/thread_path defeats the conversation upsert — **Medium** ✅ **Addressed**
+
+> **Resolution (2026-08-05).** Neither recommended option; the author's call
+> was to assume the fields are never null and make that assumption enforced
+> rather than hoped for, at both layers:
+>
+> - `RawConversationFile.title` and `.thread_path` are now `String`, not
+>   `Option<String>`. A file missing either is refused by serde with an
+>   `Error::Parse` naming the file — the degenerate input can no longer reach
+>   the storage layer at all, which is the gap this finding describes ("the
+>   pipeline admits inputs the storage layer silently splits").
+> - `conversations.title` and `.thread_path` are `NOT NULL`, so the upsert's
+>   conflict target fires for every row by construction. Since nothing has
+>   shipped, this edits the initial migration rather than adding a rebuild
+>   step. `models::Conversation` follows suit (`String`, not `Option`).
+>
+> KNOWN_ISSUES #5 corrected — it claimed two files must agree on the fields
+> "including both being present or both absent", and as this finding showed,
+> both-absent never merged.
+>
+> Tests: `parse_conversation_file_rejects_a_file_without_the_conversation_key`
+> (each field missing in turn, asserting the error names the file),
+> `conversations_reject_a_null_title_or_thread_path` (the constraint itself),
+> and `load_conversation_merges_every_file_into_one_conversation_row` (the
+> positive case the finding is really about). T2's suggested test — two
+> no-metadata files producing one conversation — is moot, since such files
+> are now rejected outright. Suite: 151 passing, clippy clean.
+>
+> Trade-off worth naming: a real export with one conversation missing a title
+> now fails the whole import instead of silently splitting that thread. The
+> review's evidence says real exports always populate both fields; if one
+> ever doesn't, the fallback-to-folder-name option below is the way out.
 
 `conversations` is keyed by `UNIQUE (title, thread_path)`
 (`core/src/db/schema.rs:14`) and `upsert_conversation` conflicts on that pair
@@ -309,7 +340,28 @@ that finds, or inserts *and links*, removes the trap and both duplicated
 call sites. (This is the type-driven "make invalid states unrepresentable"
 move at API scale.)
 
-### A3 — `INSERT OR IGNORE` swallows more than dedup conflicts — **Low**
+### A3 — `INSERT OR IGNORE` swallows more than dedup conflicts — **Low** ✅ **Addressed**
+
+> **Resolution (2026-08-05).** Swapped for the recommended
+> `ON CONFLICT (...) DO NOTHING`, spelling out the dedup index's columns and
+> expressions (`COALESCE(sender_id, -1)`, `COALESCE(content, '')`) so the
+> ignore is scoped to exactly that index. `changes() == 0` still means
+> "duplicate", and now means only that.
+>
+> The conflict target is self-verifying: SQLite rejects a statement whose
+> target doesn't match an index with `ON CONFLICT clause does not match any
+> PRIMARY KEY or UNIQUE constraint` — confirmed by deliberately dropping one
+> column from the target, which failed every dedup test. So the existing
+> dedup suite passing proves it binds to `idx_messages_dedup`.
+>
+> Two new unit tests in `core/src/ingest/loader.rs`:
+> `insert_message_reports_a_duplicate_as_none_rather_than_an_error` (the
+> path that must keep working) and
+> `insert_message_errors_on_a_constraint_violation_that_is_not_a_duplicate`,
+> which adds a throwaway unique index to stand in for the future constraint
+> this finding is about, then shows the violation now errors — confirmed to
+> fail against `INSERT OR IGNORE`, where the row was silently dropped.
+> Suite: 153 passing, clippy clean.
 
 `insert_message` (`core/src/db/queries.rs:93-105`) uses `INSERT OR IGNORE`
 and interprets `changes() == 0` as "duplicate". `OR IGNORE` also silently
@@ -499,8 +551,9 @@ Gaps, in priority order:
   `import_export` runs, assert `conversations.message_count` equals
   `count(*) FROM messages` per conversation, and (post-C2) that the FTS
   index passes `integrity-check` with docsize == indexed-message count.
-- **T2 — NULL-metadata conversation** (C3): two files in one folder with no
-  `title`/`thread_path` must produce one conversation.
+- ~~**T2 — NULL-metadata conversation** (C3): two files in one folder with no
+  `title`/`thread_path` must produce one conversation.~~ Moot — such files
+  are now rejected at parse time (see C3), and the rejection is tested.
 - **T3 — Shared test helpers:** `write_file`, `migrated_connection`, and the
   86-line `make_unreadable` guard are duplicated across four-plus files
   (`schema.rs`, `loader.rs`, `mod.rs`, `scan.rs` tests, and both integration
@@ -637,8 +690,8 @@ about a codebase that is above average:
    inside `load_conversation`, and switch `populate_fts` to FTS5's
    `'rebuild'` command. Add the T1 invariants test. This closes the known
    "re-imports are broken" issue end to end.
-2. **Close the NULL-key upsert hole** (C3) and correct KNOWN_ISSUES #5 and
-   #2 (D1) while in there.
+2. ~~**Close the NULL-key upsert hole** (C3) and correct KNOWN_ISSUES #5~~
+   **Done** — see C3. KNOWN_ISSUES #2 (D1) is still wrong.
 3. ~~**Add ordering tiebreakers** (A1) — one line, prevents user-visible
    pagination glitches the moment the UI exists.~~ **Done** — see A1.
 4. ~~**Merge participant find/create/link into one API** (A2)~~ **Done** —
@@ -647,5 +700,5 @@ about a codebase that is above average:
    added to old messages.
 6. **Set up workspace + CI** (I1, I2), run `cargo fmt` (I3), switch hot-path
    queries to `prepare_cached` (P1).
-7. Sweep the small items (A3, ~~A4~~ (done), ~~A5~~ (done), A6, A7, D2, D3,
+7. Sweep the small items (~~A3~~, ~~A4~~, ~~A5~~ (all done), A6, A7, D2, D3,
    T3, T4) opportunistically.
