@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push supersedes the first; no point finishing the older run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # The engine is where the code and the tests are, so this job is the one
+  # that has to stay fast — it deliberately skips the Tauri dependency tree.
+  engine:
+    name: engine
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Formatting needs no dependencies, so cover both crates here rather
+      # than paying for it again in the app job.
+      - name: Format
+        run: cargo fmt --all --check
+
+      # `--locked` fails if Cargo.lock would need updating, so CI can't
+      # silently resolve versions that differ from a local build.
+      - name: Lint
+        run: cargo clippy --locked -p grepm_core --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --locked -p grepm_core
+
+  # The desktop shell is still scaffold, so this only type-checks it. Its
+  # job is to catch a `grepm_core` change that breaks its one consumer.
+  app:
+    name: app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Lint
+        run: cargo clippy --locked -p grepm --all-targets -- -D warnings

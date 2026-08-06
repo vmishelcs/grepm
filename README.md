@@ -201,6 +201,25 @@ npm install
 npm run tauri dev
 ```
 
+### CI
+
+`.github/workflows/ci.yml` runs on every push to `main` and on pull
+requests. Two jobs: **engine** checks formatting across the workspace, then
+lints and tests `grepm_core`; **app** installs the Tauri system libraries
+and type-checks the desktop shell, so a change to `grepm_core`'s API can't
+silently break its one consumer. Both gate on `-D warnings` and pass
+`--locked`, so a stale `Cargo.lock` fails rather than being updated in
+place.
+
+To reproduce a CI failure locally, run the same commands:
+
+```sh
+cargo fmt --all --check
+cargo clippy --locked -p grepm_core --all-targets -- -D warnings
+cargo test --locked -p grepm_core
+cargo clippy --locked -p grepm --all-targets -- -D warnings
+```
+
 ### Recommended IDE setup
 
 [VS Code](https://code.visualstudio.com/) +
