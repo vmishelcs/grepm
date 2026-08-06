@@ -34,6 +34,11 @@ const SHOTS = [
 		path: '/',
 		prepare: (page) => page.getByRole('button', { name: 'Import Data' }).click()
 	},
+	{
+		name: 'import-menu',
+		path: '/',
+		prepare: (page) => page.getByRole('button', { name: 'More options for Work chats' }).click()
+	},
 	{ name: 'opened', path: '/opened' }
 ];
 

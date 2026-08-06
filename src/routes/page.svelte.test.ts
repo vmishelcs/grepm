@@ -5,7 +5,7 @@
  * plugin — it reaches Rust over the same bridge, as `plugin:dialog|open`.
  */
 import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
 
@@ -44,7 +44,7 @@ describe('the launch screen', () => {
 		stubCommands({ list_imports: sampleImports });
 
 		render(Page);
-		await expect.element(page.getByRole('button', { name: /Work chats/ })).toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: /^Work chats/ })).toBeInTheDocument();
 
 		// A full-height screen whose padding is added *outside* its height
 		// overflows by exactly that padding, and the window grows a scrollbar
@@ -58,9 +58,9 @@ describe('the launch screen', () => {
 
 		render(Page);
 
-		await expect.element(page.getByRole('button', { name: /Work chats/ })).toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: /^Work chats/ })).toBeInTheDocument();
 		await expect
-			.element(page.getByRole('button', { name: /2026-05-28 09:15 PDT/ }))
+			.element(page.getByRole('button', { name: /^2026-05-28 09:15 PDT/ }))
 			.toBeInTheDocument();
 		await expect
 			.element(page.getByRole('button', { name: /47 conversations/ }))
@@ -107,6 +107,104 @@ describe('the launch screen', () => {
 		await expect.element(page.getByRole('button', { name: 'Import' })).toBeEnabled();
 	});
 
+	it('hides Delete Import behind the ... button', async () => {
+		stubCommands({ list_imports: sampleImports });
+
+		render(Page);
+		const more = page.getByRole('button', { name: 'More options for Work chats' });
+		await expect.element(more).toBeInTheDocument();
+
+		// Nothing destructive is one stray click away.
+		expect(page.getByRole('menuitem').elements()).toHaveLength(0);
+		await more.click();
+
+		await expect.element(page.getByRole('menuitem', { name: 'Delete Import' })).toBeInTheDocument();
+	});
+
+	it('closes the menu when the ... button is clicked again', async () => {
+		stubCommands({ list_imports: sampleImports });
+
+		render(Page);
+		const more = page.getByRole('button', { name: 'More options for Work chats' });
+		await expect.element(more).toBeInTheDocument();
+
+		await more.click();
+		await expect.element(page.getByRole('menuitem', { name: 'Delete Import' })).toBeInTheDocument();
+		await more.click();
+
+		await vi.waitFor(() => expect(page.getByRole('menuitem').elements()).toHaveLength(0));
+	});
+
+	it('opening the menu does not open the import', async () => {
+		const calls: string[] = [];
+		mockIPC((command) => {
+			calls.push(command);
+			if (command === 'list_imports') return sampleImports;
+			throw new Error(`unexpected command: ${command}`);
+		});
+
+		render(Page);
+		const more = page.getByRole('button', { name: 'More options for Work chats' });
+		await expect.element(more).toBeInTheDocument();
+		await more.click();
+
+		await expect.element(page.getByRole('menuitem', { name: 'Delete Import' })).toBeInTheDocument();
+		expect(calls).not.toContain('open_import');
+	});
+
+	it('confirms before deleting, and does nothing if the user declines', async () => {
+		const calls: string[] = [];
+		mockIPC((command) => {
+			calls.push(command);
+			if (command === 'list_imports') return sampleImports;
+			if (command === 'plugin:dialog|message') return 'Cancel';
+			throw new Error(`unexpected command: ${command}`);
+		});
+
+		render(Page);
+		const more = page.getByRole('button', { name: 'More options for Work chats' });
+		await expect.element(more).toBeInTheDocument();
+		await more.click();
+		await page.getByRole('menuitem', { name: 'Delete Import' }).click();
+
+		await vi.waitFor(() => expect(calls).toContain('plugin:dialog|message'));
+		expect(calls).not.toContain('delete_import');
+	});
+
+	it('deletes the import the menu was opened on once confirmed', async () => {
+		const deleted: string[] = [];
+		mockIPC((command, args) => {
+			// The plugin sends its labels as `{ OkCancelCustom: [ok, cancel] }`
+			// and decides the answer by comparing the reply to the ok label —
+			// so echoing that label back is what "confirmed" looks like here.
+			if (command === 'plugin:dialog|message') {
+				return (args as { buttons: { OkCancelCustom: [string, string] } }).buttons
+					.OkCancelCustom[0];
+			}
+			if (command === 'delete_import') {
+				deleted.push((args as { id: string }).id);
+				return null;
+			}
+			if (command === 'list_imports') {
+				return sampleImports.filter((entry) => !deleted.includes(entry.id));
+			}
+			throw new Error(`unexpected command: ${command}`);
+		});
+
+		render(Page);
+		const more = page.getByRole('button', { name: 'More options for Work chats' });
+		await expect.element(more).toBeInTheDocument();
+		await more.click();
+		await page.getByRole('menuitem', { name: 'Delete Import' }).click();
+
+		await vi.waitFor(() => expect(deleted).toEqual([sampleImports[0].id]));
+		// The list re-reads afterwards, so the tile goes without a reload.
+		await expect.element(page.getByRole('button', { name: /^Work chats/ })).not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: /^2026-05-28 09:15 PDT/ }))
+			.toBeInTheDocument();
+	});
+
 	it('reports an import whose file has gone missing', async () => {
 		stubCommands({ list_imports: sampleImports });
 		// `open_import` has to reject rather than return, so it needs its own
@@ -120,7 +218,7 @@ describe('the launch screen', () => {
 		});
 
 		render(Page);
-		await page.getByRole('button', { name: /Work chats/ }).click();
+		await page.getByRole('button', { name: /^Work chats/ }).click();
 
 		await expect.element(page.getByRole('alert')).toHaveTextContent(/Could not find export/);
 	});

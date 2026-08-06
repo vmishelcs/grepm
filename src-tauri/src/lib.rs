@@ -28,6 +28,7 @@ pub fn run() {
             commands::active_import,
             commands::open_import,
             commands::start_import,
+            commands::delete_import,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

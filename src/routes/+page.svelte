@@ -6,6 +6,8 @@
 	import NameImport from '$lib/components/NameImport.svelte';
 	import { describeError } from '$lib/errors';
 	import {
+		confirmDestructive,
+		deleteImport,
 		listImports,
 		onImportProgress,
 		openImport,
@@ -73,6 +75,32 @@
 		}
 	}
 
+	async function deleteEntry(entry: ImportEntry) {
+		error = null;
+
+		// Irreversible, and a right-click plus one more click is a short path to
+		// losing an import that took minutes to build — so it asks first. The
+		// wording says what is and isn't destroyed, because "delete" next to a
+		// folder the user chose is otherwise an alarming thing to click.
+		const confirmed = await confirmDestructive(
+			`Delete “${entry.name}”?\n\nThis removes the imported data from the app. ` +
+				`The Facebook export it was made from will not be deleted.`,
+			'Delete'
+		);
+		if (!confirmed) {
+			return;
+		}
+
+		try {
+			await deleteImport(entry.id);
+		} catch (err) {
+			error = describeError(err);
+		}
+		// Either way: on success the row is gone, and on failure the list may
+		// have moved on anyway.
+		await refresh();
+	}
+
 	async function openEntry(entry: ImportEntry) {
 		error = null;
 		try {
@@ -112,7 +140,7 @@
 
 		<section class="imports">
 			<h2>Imports</h2>
-			<ImportList {imports} onopen={openEntry} />
+			<ImportList {imports} onopen={openEntry} ondelete={deleteEntry} />
 		</section>
 	{/if}
 </main>

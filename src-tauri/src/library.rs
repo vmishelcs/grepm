@@ -219,6 +219,62 @@ pub fn import_into_library(
     Ok(entry)
 }
 
+/// Removes every trace of an import from the app: its database, the sidecar
+/// files SQLite leaves beside it, and its entry in the index. Afterwards it is
+/// as though the import had never been made.
+///
+/// What it deliberately does **not** touch is `source_path` — the Facebook
+/// export the import was built from. grepm only ever read that folder; it is
+/// the user's own data, sitting where they downloaded it, and deleting an
+/// import is a statement about this app's copy and nothing else.
+///
+/// The files go before the index entry. The reverse order would report success
+/// with the data still on disk, which is exactly the promise a delete must not
+/// break; this way a failure part-way leaves an entry the existing
+/// `ImportFileMissing` path already handles, and retrying finishes the job.
+pub fn delete_from_library(dir: &Path, id: &str) -> Result<(), AppError> {
+    let mut index = read_index(dir)?;
+    let position = index
+        .imports
+        .iter()
+        .position(|entry| entry.id == id)
+        .ok_or_else(|| AppError::UnknownImport { id: id.to_string() })?;
+
+    remove_database(dir, id)?;
+
+    index.imports.remove(position);
+    write_index(dir, &index)?;
+
+    Ok(())
+}
+
+/// Deletes the database and the `-wal`/`-shm` files WAL mode leaves next to
+/// it. A file that is already gone is not a failure — what matters is that it
+/// isn't there afterwards.
+fn remove_database(dir: &Path, id: &str) -> Result<(), AppError> {
+    let database = database_path(dir, id);
+    let wal = sidecar(&database, "-wal");
+    let shm = sidecar(&database, "-shm");
+
+    for path in [database, wal, shm] {
+        match fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err.into()),
+        }
+    }
+
+    Ok(())
+}
+
+/// SQLite names its sidecars by appending to the whole filename, extension
+/// included: `1786.sqlite3` is joined by `1786.sqlite3-wal`.
+fn sidecar(database: &Path, suffix: &str) -> PathBuf {
+    let mut name = database.as_os_str().to_os_string();
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
 fn import_database(
     db_path: &Path,
     source: &Path,
@@ -242,6 +298,27 @@ mod tests {
 
     fn import(dir: &Path, name: &str) -> Result<ImportEntry, AppError> {
         import_into_library(dir, &samples(), name, now_ms(), &mut |_| {})
+    }
+
+    /// A minimal export, written somewhere disposable. The delete tests use
+    /// this rather than the repo's `samples/`, so that a bug which reached for
+    /// `source_path` could never destroy the real thing while proving it.
+    fn write_export(root: &Path) {
+        let conversation = root.join("messages").join("inbox").join("alice_and_bob");
+        fs::create_dir_all(&conversation).unwrap();
+        fs::write(
+            conversation.join("message_1.json"),
+            r#"{
+                "participants": [{"name": "Alice"}, {"name": "Bob"}],
+                "messages": [
+                    {"sender_name": "Alice", "timestamp_ms": 1000, "content": "hi"}
+                ],
+                "title": "Alice and Bob",
+                "is_still_participant": true,
+                "thread_path": "inbox/alice_and_bob"
+            }"#,
+        )
+        .unwrap();
     }
 
     fn entry(id: &str, name: &str) -> ImportEntry {
@@ -464,6 +541,169 @@ mod tests {
         assert!(matches!(
             import(dir.path(), "   ").unwrap_err(),
             AppError::EmptyName
+        ));
+    }
+
+    #[test]
+    fn deleting_an_import_removes_its_database_and_its_entry() {
+        let dir = tempdir().unwrap();
+        let export = tempdir().unwrap();
+        write_export(export.path());
+        let entry = import_into_library(
+            dir.path(),
+            export.path(),
+            "Work chats",
+            now_ms(),
+            &mut |_| {},
+        )
+        .unwrap();
+
+        delete_from_library(dir.path(), &entry.id).unwrap();
+
+        assert!(!database_path(dir.path(), &entry.id).exists());
+        assert!(read_index(dir.path()).unwrap().imports.is_empty());
+        assert_eq!(databases_in(dir.path()), 0);
+    }
+
+    #[test]
+    fn deleting_an_import_leaves_the_original_export_untouched() {
+        let dir = tempdir().unwrap();
+        let export = tempdir().unwrap();
+        write_export(export.path());
+        let message_file = export
+            .path()
+            .join("messages")
+            .join("inbox")
+            .join("alice_and_bob")
+            .join("message_1.json");
+        let before = fs::read_to_string(&message_file).unwrap();
+
+        let entry = import_into_library(
+            dir.path(),
+            export.path(),
+            "Work chats",
+            now_ms(),
+            &mut |_| {},
+        )
+        .unwrap();
+        delete_from_library(dir.path(), &entry.id).unwrap();
+
+        assert!(
+            export.path().exists(),
+            "the Facebook export is the user's own data — grepm only ever read it"
+        );
+        assert_eq!(
+            fs::read_to_string(&message_file).unwrap(),
+            before,
+            "the exported messages must survive deleting the import made from them"
+        );
+    }
+
+    #[test]
+    fn deleting_an_import_removes_the_write_ahead_log_sidecars() {
+        let dir = tempdir().unwrap();
+        let export = tempdir().unwrap();
+        write_export(export.path());
+        let entry = import_into_library(
+            dir.path(),
+            export.path(),
+            "Work chats",
+            now_ms(),
+            &mut |_| {},
+        )
+        .unwrap();
+
+        // WAL mode normally tidies these away on a clean close; a crash leaves
+        // them behind, and then they are part of the import's data too.
+        let database = database_path(dir.path(), &entry.id);
+        fs::write(sidecar(&database, "-wal"), "").unwrap();
+        fs::write(sidecar(&database, "-shm"), "").unwrap();
+
+        delete_from_library(dir.path(), &entry.id).unwrap();
+
+        assert!(!sidecar(&database, "-wal").exists());
+        assert!(!sidecar(&database, "-shm").exists());
+    }
+
+    #[test]
+    fn deleting_one_import_leaves_the_others_alone() {
+        let dir = tempdir().unwrap();
+        let export = tempdir().unwrap();
+        write_export(export.path());
+        let first = import_into_library(
+            dir.path(),
+            export.path(),
+            "Work chats",
+            now_ms(),
+            &mut |_| {},
+        )
+        .unwrap();
+        let second =
+            import_into_library(dir.path(), export.path(), "Family", now_ms(), &mut |_| {})
+                .unwrap();
+
+        delete_from_library(dir.path(), &first.id).unwrap();
+
+        assert!(database_path(dir.path(), &second.id).exists());
+        assert_eq!(read_index(dir.path()).unwrap().imports, vec![second]);
+    }
+
+    #[test]
+    fn deleting_an_import_frees_its_name_for_reuse() {
+        let dir = tempdir().unwrap();
+        let export = tempdir().unwrap();
+        write_export(export.path());
+        let entry = import_into_library(
+            dir.path(),
+            export.path(),
+            "Work chats",
+            now_ms(),
+            &mut |_| {},
+        )
+        .unwrap();
+
+        delete_from_library(dir.path(), &entry.id).unwrap();
+
+        // "As if the import was never made" includes the name it was holding.
+        import_into_library(
+            dir.path(),
+            export.path(),
+            "Work chats",
+            now_ms(),
+            &mut |_| {},
+        )
+        .expect("the name should be free again");
+    }
+
+    #[test]
+    fn deleting_an_import_whose_database_is_already_gone_still_clears_the_entry() {
+        let dir = tempdir().unwrap();
+        let export = tempdir().unwrap();
+        write_export(export.path());
+        let entry = import_into_library(
+            dir.path(),
+            export.path(),
+            "Work chats",
+            now_ms(),
+            &mut |_| {},
+        )
+        .unwrap();
+        fs::remove_file(database_path(dir.path(), &entry.id)).unwrap();
+
+        // The drift case: the file went behind the app's back. Deleting is how
+        // the user clears the stale row, so it must not fail on the absence.
+        delete_from_library(dir.path(), &entry.id).unwrap();
+
+        assert!(read_index(dir.path()).unwrap().imports.is_empty());
+    }
+
+    #[test]
+    fn deleting_an_unknown_import_is_an_error() {
+        let dir = tempdir().unwrap();
+
+        assert!(matches!(
+            delete_from_library(dir.path(), "nope").unwrap_err(),
+            AppError::UnknownImport { .. }
         ));
     }
 

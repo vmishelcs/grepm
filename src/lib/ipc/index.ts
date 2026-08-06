@@ -11,7 +11,7 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { open } from '@tauri-apps/plugin-dialog';
+import { confirm, open } from '@tauri-apps/plugin-dialog';
 
 import type { ActiveImportInfo, ImportEntry, ImportProgress } from './types';
 
@@ -45,6 +45,28 @@ export function openImport(id: string): Promise<ImportEntry> {
  */
 export function startImport(sourcePath: string, name: string): Promise<ImportEntry> {
 	return invoke('start_import', { sourcePath, name });
+}
+
+/**
+ * Removes an import from the app: its database and its entry in the library.
+ *
+ * The Facebook export it was built from is not touched — that folder is the
+ * user's own data and grepm only ever read it.
+ */
+export function deleteImport(id: string): Promise<void> {
+	return invoke('delete_import', { id });
+}
+
+/**
+ * A native modal confirmation for something irreversible. Resolves `true` only
+ * if the user accepts.
+ *
+ * The wording is the caller's, not this layer's — this only owns the fact that
+ * a confirmation is a round trip to Rust like everything else. `mockIPC` sees
+ * it as `plugin:dialog|message`, which is what the plugin builds `confirm` on.
+ */
+export function confirmDestructive(message: string, okLabel: string): Promise<boolean> {
+	return confirm(message, { title: 'grepm', kind: 'warning', okLabel });
 }
 
 /**

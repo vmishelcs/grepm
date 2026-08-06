@@ -109,6 +109,26 @@ pub fn open_import(state: State<'_, AppState>, id: String) -> Result<ImportEntry
 }
 
 #[tauri::command]
+pub fn delete_import(state: State<'_, AppState>, id: String) -> Result<(), AppError> {
+    // Library before active, always. `open_import` takes them in that order
+    // too, and taking them the other way round here would be a deadlock
+    // waiting for the two commands to land at the same moment.
+    let dir = lock(&state.library);
+
+    {
+        // Close it first if this is the open one. A live connection holds the
+        // file open — undeletable on Windows — and would otherwise leave the
+        // app querying a database the user just asked to be rid of.
+        let mut active = lock(&state.active);
+        if active.as_ref().is_some_and(|open| open.entry.id == id) {
+            *active = None;
+        }
+    }
+
+    library::delete_from_library(&dir, &id)
+}
+
+#[tauri::command]
 pub async fn start_import(
     app: AppHandle,
     state: State<'_, AppState>,
