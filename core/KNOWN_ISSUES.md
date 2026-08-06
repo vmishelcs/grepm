@@ -4,6 +4,9 @@ Notes on things spotted while building out `core`, in roughly the order
 they'd bite someone. Nothing here is blocking, but each is worth a
 deliberate decision before this data is relied on.
 
+Entry numbers are stable: code and docs cite them, so a removed entry
+leaves its number retired rather than renumbering everything after it.
+
 ## Correctness
 
 ### 1. ~~`message_count` isn't accumulated across a conversation's files~~ (fixed)
@@ -15,22 +18,6 @@ gets added onto the running total via
 `message_count = message_count + excluded.message_count`. Files are
 matched to the same conversation row via the `(title, thread_path)`
 unique key (see #5) rather than the removed `raw_name` folder name.
-
-### 2. ~~The messages dedup constraint doesn't catch `NULL == NULL`~~ (fixed)
-
-`content` is now `TEXT NOT NULL DEFAULT ''` (`src/db/schema.rs:28-35`) —
-`insert_message` stores a missing message body as `''` instead of `NULL`
-(`src/db/queries.rs:102`), so `content` can no longer take part in a
-`NULL == NULL` mismatch.
-
-`sender_id` is still nullable (an unresolved sender is a real "no id"
-case, not something to default away), so the dedup constraint moved out
-of the `messages` table definition into a standalone
-`CREATE UNIQUE INDEX idx_messages_dedup` (`src/db/schema.rs:37-42`) that
-compares `COALESCE(sender_id, -1)` instead of `sender_id` directly.
-SQLite doesn't allow expressions in an inline table-level `UNIQUE`
-constraint (only in a `CREATE INDEX`), which is why this one constraint
-couldn't stay inline like the rest of the schema.
 
 ### 3. ~~Participants are deduped globally by exact name match~~ (fixed)
 
