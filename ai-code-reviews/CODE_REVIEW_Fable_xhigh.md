@@ -76,7 +76,7 @@ performance headroom for large exports.
 | D2 | Low | docs | README drift: trait signature, test count, "(re)builds" wording |
 | D3 | Low | code | `db/models.rs` is currently dead code |
 | P1–P4 | — | perf | Statement caching, participant lookup caching, count-query duplication, parse-inside-transaction |
-| T1–T4 | — | tests | Missing re-import assertions, ~~shared helpers~~ (T3 done), property tests |
+| T1–T4 | — | tests | Missing re-import assertions, ~~shared helpers~~ (T3), ~~property tests~~ (T4) |
 | I1–I3 | — | infra | No Cargo workspace, no CI, fmt drift |
 
 ---
@@ -675,12 +675,45 @@ Gaps, in priority order:
   > is `cfg(test)` inside the library, and each integration test is its own
   > crate linking the published library, so there is nothing for it to
   > import. Suite: 154 passing, clippy clean.
-- **T4 — Property test for `repair_mojibake`:** the function is a perfect
+- **T4 — Property test for `repair_mojibake`** ✅ **Addressed (2026-08-05):**
+  the function is a perfect
   proptest target: for any `s: String`, encoding `s` as UTF-8 bytes and
   mapping each byte to its Latin-1 char must repair back to exactly `s`; and
   `repair_mojibake` must be idempotent on its own output. This turns
   KNOWN_ISSUES #10's "low practical risk" reasoning into a checked
   invariant.
+
+  > **Resolution.** `proptest` added as a dev-dependency, with three
+  > properties in `core/src/ingest/parse.rs`:
+  >
+  > - `repair_mojibake_undoes_the_corruption_for_any_text` — the round-trip
+  >   invariant exactly as described. This is the one that matters: it turns
+  >   "it always undoes the bug" from an argument into a check over every
+  >   input, rather than the two hand-picked examples that were there.
+  > - `repair_mojibake_leaves_any_text_with_a_non_latin1_char_alone` —
+  >   pins the first escape hatch, over an arbitrary non-Latin-1 char in an
+  >   arbitrary position.
+  > - `repair_mojibake_leaves_any_ascii_text_alone` — pins the fast path.
+  >
+  > Verified the properties have teeth by sabotaging the implementation
+  > twice: truncating with `c as u8` instead of bailing out on a
+  > non-Latin-1 char, and refusing to decode past four bytes. Both were
+  > caught, the second shrunk to the minimal input `"𞹤0"`. The
+  > sabotage-generated `proptest-regressions/` seeds were deleted rather
+  > than committed — they record artificial failures, not real ones.
+  >
+  > **Correction to this item:** the second suggested property is false.
+  > `repair_mojibake` is *not* idempotent on its own output, and can't be —
+  > it peels exactly one layer of the corruption, so feeding its output back
+  > in peels another. Concretely, `repair("Ã\u{83}Â©") == "Ã©"`, but
+  > `repair("Ã©") == "é"`. That isn't a bug: it's the same accepted risk
+  > KNOWN_ISSUES #10 already records, since `"Ã©"` is indistinguishable by
+  > inspection from a corrupted `"é"`, and the function's contract is that
+  > its input is corrupted exactly once. Asserting idempotence would have
+  > pinned behavior the function doesn't have. The real behavior is pinned
+  > instead by `repair_mojibake_peels_exactly_one_layer_of_corruption`, and
+  > KNOWN_ISSUES #10 now cites it as a concrete instance of its residual
+  > risk. Suite: 158 passing, clippy clean.
 
 ---
 
@@ -818,7 +851,7 @@ about a codebase that is above average:
    added to old messages.
 6. **Set up workspace + CI** (I1, I2), run `cargo fmt` (I3), switch hot-path
    queries to `prepare_cached` (P1).
-7. Sweep the small items (~~A3~~, ~~A4~~, ~~A5~~, ~~A6~~, ~~T3~~ (all done),
-   A7, D2, D3, T4) opportunistically.
+7. Sweep the small items (~~A3~~, ~~A4~~, ~~A5~~, ~~A6~~, ~~T3~~, ~~T4~~
+   (all done), A7, D2, D3) opportunistically.
 8. Before the UI renders a single snippet, settle the escaping story (A8).
    It's the one item here that turns into a vulnerability rather than a bug.
