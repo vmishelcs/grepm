@@ -175,7 +175,17 @@ show "showing 1–32 of 900" and drive pagination without loading every hit.
 
 ## Building & testing
 
-The engine has no UI dependencies and can be built and tested on its own:
+Both Rust crates are members of one Cargo workspace, so from the repository
+root:
+
+```sh
+cargo test --workspace
+cargo clippy --workspace --all-targets
+```
+
+The engine has no UI dependencies, so it can also be built and tested on its
+own — useful while working on `core`, since it skips the Tauri dependency
+tree entirely:
 
 ```sh
 cd core

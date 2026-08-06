@@ -525,7 +525,7 @@ mod tests {
         // Each page is its own query and its own read transaction, so this
         // only holds if the ordering is total.
         let index = FtsIndex::new(&conn);
-        let paged: Vec<i64> = (0..3)
+        let mut paged: Vec<i64> = (0..3)
             .flat_map(|page| {
                 index
                     .search(
@@ -542,9 +542,8 @@ mod tests {
             })
             .collect();
 
-        let mut sorted = paged.clone();
-        sorted.sort_unstable();
-        assert_eq!(sorted, ids, "every hit should appear on exactly one page");
+        paged.sort_unstable();
+        assert_eq!(paged, ids, "every hit should appear on exactly one page");
     }
 
     #[test]

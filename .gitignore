@@ -1,5 +1,7 @@
 .DS_Store
 node_modules
+# Cargo builds the whole workspace into one target dir at the root.
+/target
 /build
 /.svelte-kit
 /package

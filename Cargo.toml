@@ -1,0 +1,21 @@
+[workspace]
+members = ["core", "src-tauri"]
+resolver = "2"
+
+# `src-tauri` depends on `core` by path and both pull in serde. Declared here
+# and referenced with `serde.workspace = true`, so the two can't drift to
+# different requirements — the single workspace lockfile then pins one
+# resolved version for the whole build.
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[workspace.lints.rust]
+# Neither crate needs `unsafe`; make adding any a deliberate, visible act
+# rather than something that slips in.
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+# Nursery, so off by default: catches clones whose value is never used
+# again, which is the easiest way to quietly slow down the ingest hot path.
+redundant_clone = "warn"
