@@ -13,7 +13,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { confirm, open } from '@tauri-apps/plugin-dialog';
 
-import type { ActiveImportInfo, ImportEntry, ImportProgress } from './types';
+import type { ActiveImportInfo, ConversationSummary, ImportEntry, ImportProgress } from './types';
 
 export * from './types';
 
@@ -25,6 +25,14 @@ export function listImports(): Promise<ImportEntry[]> {
 /** The open import and its live row counts, or `null` if nothing is open. */
 export function activeImport(): Promise<ActiveImportInfo | null> {
 	return invoke('active_import');
+}
+
+/**
+ * Every conversation in the open import, most recently active first. Empty if
+ * nothing is open.
+ */
+export function listConversations(): Promise<ConversationSummary[]> {
+	return invoke('list_conversations');
 }
 
 /**

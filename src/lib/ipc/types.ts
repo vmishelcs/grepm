@@ -23,6 +23,21 @@ export interface ImportEntry {
 	conversation_count: number;
 }
 
+/**
+ * Mirrors `db::queries::ConversationSummary`.
+ *
+ * `title` and every name in `participants` are export-derived text a stranger
+ * wrote. Render them as text nodes — never `{@html}`. See rule 1.
+ */
+export interface ConversationSummary {
+	id: number;
+	title: string;
+	participants: string[];
+	/** Rows actually stored, not the count the export claimed. */
+	message_count: number;
+	last_message_ms: number | null;
+}
+
 /** Mirrors `db::queries::Stats`. */
 export interface Stats {
 	message_count: number;

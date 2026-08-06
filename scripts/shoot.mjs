@@ -68,6 +68,8 @@ function installIpcStub() {
 					entry: fixtures.sampleImports[0],
 					stats: { message_count: 12431, conversation_count: 47 }
 				};
+			case 'list_conversations':
+				return fixtures.sampleConversations;
 			// The folder picker crosses the same bridge as any command.
 			case 'plugin:dialog|open':
 				return '/home/vm/Downloads/facebook-export';

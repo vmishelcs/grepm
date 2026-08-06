@@ -8,10 +8,63 @@
 import {
 	MATCH_END,
 	MATCH_START,
+	type ConversationSummary,
 	type ImportEntry,
 	type SearchHit,
 	type SearchResults
 } from './ipc/types';
+
+/**
+ * Conversations for the reader's sidebar, in the order the query returns them
+ * (most recently active first). Includes the cases that break a naive row: a
+ * participant list far too long for the sidebar, a one-person conversation
+ * whose label has to read "1 Participant", and a title carrying markup.
+ */
+export const sampleConversations: ConversationSummary[] = [
+	{
+		id: 10,
+		title: 'Weekend plans',
+		participants: ['Ada Lovelace', 'Grace Hopper'],
+		message_count: 1842,
+		last_message_ms: Date.UTC(2021, 4, 12, 9, 34)
+	},
+	{
+		id: 11,
+		title: 'The Brunch Crew',
+		participants: [
+			'Ada Lovelace',
+			'Alan Turing',
+			'Barbara Liskov',
+			'Donald Knuth',
+			'Edsger Dijkstra',
+			'Grace Hopper',
+			'Katherine Johnson'
+		],
+		message_count: 9317,
+		last_message_ms: Date.UTC(2021, 2, 2, 18, 5)
+	},
+	{
+		id: 12,
+		title: '<b>Book club</b>',
+		participants: ['Margaret Hamilton'],
+		message_count: 87,
+		last_message_ms: Date.UTC(2020, 10, 3, 18, 5)
+	},
+	{
+		id: 13,
+		title: 'Hiking club',
+		participants: ['Ada Lovelace', 'Facebook User', 'Katherine Johnson'],
+		message_count: 412,
+		last_message_ms: Date.UTC(2019, 7, 21, 11, 2)
+	},
+	{
+		id: 14,
+		title: 'Moving day logistics',
+		participants: ['Alan Turing', 'Grace Hopper'],
+		message_count: 63,
+		last_message_ms: Date.UTC(2019, 3, 4, 8, 15)
+	}
+];
 
 /** A library with something in it, for the launch screen's list. */
 export const sampleImports: ImportEntry[] = [

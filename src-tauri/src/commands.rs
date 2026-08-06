@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use grepm_core::db;
-use grepm_core::db::queries::Stats;
+use grepm_core::db::queries::{ConversationSummary, Stats};
 use grepm_core::db::Connection;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -80,6 +80,21 @@ pub fn active_import(state: State<'_, AppState>) -> Result<Option<ActiveImportIn
         entry: active.entry.clone(),
         stats: db::queries::stats(&active.conn)?,
     }))
+}
+
+#[tauri::command]
+pub fn list_conversations(
+    state: State<'_, AppState>,
+) -> Result<Vec<ConversationSummary>, AppError> {
+    let active = lock(&state.active);
+    // Empty rather than an error when nothing is open. The screen asking has
+    // already checked with `active_import` and shows its own message; a second
+    // way to say the same thing would only be a second thing to handle.
+    let Some(active) = active.as_ref() else {
+        return Ok(Vec::new());
+    };
+
+    Ok(db::queries::conversations(&active.conn)?)
 }
 
 #[tauri::command]
