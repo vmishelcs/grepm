@@ -1,6 +1,8 @@
 use rusqlite::{params, Connection};
 
-use crate::search::{Page, SearchHit, SearchIndex, SearchQuery, SearchResults, SortOrder};
+use crate::search::{
+    Page, SearchHit, SearchIndex, SearchQuery, SearchResults, SortOrder, MATCH_END, MATCH_START,
+};
 use crate::Result;
 
 pub struct FtsIndex<'a> {
@@ -73,7 +75,7 @@ impl<'a> SearchIndex for FtsIndex<'a> {
 
         let mut stmt = tx.prepare(&format!(
             "SELECT m.id, m.conversation_id, c.title, p.name, m.timestamp_ms, \
-                    snippet(messages_fts, 0, '[', ']', '...', 8) \
+                    snippet(messages_fts, 0, '{MATCH_START}', '{MATCH_END}', '...', 8) \
              FROM messages_fts \
              JOIN messages m ON m.id = messages_fts.rowid \
              JOIN conversations c ON c.id = m.conversation_id \

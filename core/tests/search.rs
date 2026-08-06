@@ -18,7 +18,10 @@ use tempfile::{tempdir, TempDir};
 use grepm_core::db;
 use grepm_core::ingest::import_export;
 use grepm_core::search::fts::FtsIndex;
-use grepm_core::search::{self, Page, SearchIndex, SearchQuery, SearchResults, SortOrder, UiFilters};
+use grepm_core::search::{
+    self, Page, SearchIndex, SearchQuery, SearchResults, SortOrder, UiFilters, MATCH_END,
+    MATCH_START,
+};
 
 fn write_file(path: &Path, contents: &str) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -199,8 +202,9 @@ fn matches_diacritic_insensitively_via_the_fts_tokenizer() {
     assert_eq!(hit.sender_name.as_deref(), Some("Dave"));
     assert_eq!(hit.timestamp_ms, 4000);
     assert!(
-        hit.snippet.contains("[café]"),
-        "snippet should highlight the matched word using the '[' ']' markers: {}",
+        hit.snippet
+            .contains(&format!("{MATCH_START}café{MATCH_END}")),
+        "snippet should wrap the matched word in the match markers: {}",
         hit.snippet
     );
 }
@@ -489,5 +493,40 @@ fn attachment_only_messages_are_not_searchable_but_captions_are() {
         vec![1000, 2000],
         "an attachment message is searchable by its caption, but an \
          attachment-only message with no text is not"
+    );
+}
+
+#[test]
+fn match_markers_are_distinguishable_from_punctuation_in_the_message() {
+    let (_db_dir, conn) = db_from_conversation(
+        r#"{
+            "participants": [{"name": "Alice"}],
+            "messages": [
+                {
+                    "sender_name": "Alice",
+                    "timestamp_ms": 1000,
+                    "content": "I read [1] and the coffee was fine"
+                }
+            ],
+            "title": "Alice",
+            "is_still_participant": true,
+            "thread_path": "inbox/conv"
+        }"#,
+    );
+
+    let results = search(
+        &conn,
+        query("coffee", UiFilters::default(), SortOrder::Latest),
+        Page::default(),
+    );
+
+    // The message's own brackets come through untouched, so a consumer can
+    // mark up exactly the match. Were `[`/`]` the markers, this snippet
+    // would read "I read [1] and the [coffee] was fine" and "1" would be
+    // indistinguishable from a highlight.
+    let snippet = &results.hits[0].snippet;
+    assert_eq!(
+        snippet,
+        &format!("I read [1] and the {MATCH_START}coffee{MATCH_END} was fine")
     );
 }

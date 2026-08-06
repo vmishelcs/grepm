@@ -45,6 +45,22 @@ pub struct SearchQuery {
     pub sort: SortOrder,
 }
 
+/// Wraps each matched term in [`SearchHit::snippet`], paired with
+/// [`MATCH_END`].
+///
+/// Unicode's interlinear annotation anchor: a format character meant for
+/// exactly this "the following run of text is annotated" role, so it can't
+/// be mistaken for something a person typed. Marking matches with ordinary
+/// punctuation instead (`[`…`]`, say) would leave a consumer unable to tell
+/// a highlight from a literal bracket in the message — chat text contains
+/// those freely, and the distinction is lost once the marked-up string is
+/// built.
+pub const MATCH_START: char = '\u{FFF9}';
+
+/// Closes a match opened by [`MATCH_START`]. Unicode's interlinear
+/// annotation terminator.
+pub const MATCH_END: char = '\u{FFFB}';
+
 #[derive(Debug, Serialize)]
 pub struct SearchHit {
     pub message_id: i64,
@@ -52,6 +68,11 @@ pub struct SearchHit {
     pub conversation_title: Option<String>,
     pub sender_name: Option<String>,
     pub timestamp_ms: i64,
+    /// An excerpt of the message with each matched term wrapped in
+    /// [`MATCH_START`]/[`MATCH_END`], and `...` where the excerpt was
+    /// clipped. A consumer is expected to replace the markers with its own
+    /// markup — and to escape the surrounding text first, since this is
+    /// message content the sender controls.
     pub snippet: String,
 }
 
