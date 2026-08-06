@@ -144,3 +144,14 @@ already correct, entirely within the Latin-1 range, and happens to
 reinterpret as valid UTF-8 would be silently mis-repaired. Low practical
 risk given the source data, but worth remembering if this logic is ever
 reused against a different/cleaner data source.
+
+Half of this is now a checked invariant rather than an argument:
+`repair_mojibake_undoes_the_corruption_for_any_text` is a property test
+asserting that corrupting *any* string and repairing it returns the
+original, so the "it always undoes the bug" half holds for every input, not
+just the examples. The residual risk above is unchanged, and
+`repair_mojibake_peels_exactly_one_layer_of_corruption` pins a concrete
+instance of it: `"Ã©"` is already-correct Latin-1 text that this function
+will happily "repair" into `"é"`, because nothing distinguishes it from a
+corrupted `"é"`. That also means the function is deliberately not
+idempotent.

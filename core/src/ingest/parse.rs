@@ -623,4 +623,58 @@ mod tests {
         let text = "already fine \u{1f600}".to_string();
         assert_eq!(repair_mojibake(text.clone()), text);
     }
+
+    #[test]
+    fn repair_mojibake_peels_exactly_one_layer_of_corruption() {
+        // Deliberately *not* idempotent: it undoes one application of the
+        // export bug, so a doubly-corrupted string needs two passes and a
+        // once-repaired string would be "repaired" again if fed back in.
+        //
+        // That's the same accepted risk as KNOWN_ISSUES #10 — "Ã©" is
+        // indistinguishable from corrupted "é" by inspection, and this
+        // function's contract is that its input is always corrupted exactly
+        // once. Pinned here so a future refactor toward idempotence has to
+        // be a deliberate choice rather than an accident.
+        let once = corrupt("é");
+        let twice = corrupt(&once);
+
+        assert_eq!(repair_mojibake(twice), once);
+        assert_eq!(repair_mojibake(once), "é");
+    }
+
+    /// Applies the corruption Messenger's exporter does: encode as UTF-8,
+    /// then read each of those bytes back as a Latin-1 character.
+    fn corrupt(text: &str) -> String {
+        text.bytes().map(char::from).collect()
+    }
+
+    proptest::proptest! {
+        /// The property [`repair_mojibake`] exists to satisfy: it is a left
+        /// inverse of the corruption, for *any* text a message could hold —
+        /// not just the em dash and emoji the examples above cover.
+        #[test]
+        fn repair_mojibake_undoes_the_corruption_for_any_text(text: String) {
+            proptest::prop_assert_eq!(repair_mojibake(corrupt(&text)), text);
+        }
+
+        /// The first escape hatch: a char above U+00FF can't have come from
+        /// reading a byte as Latin-1, so the text isn't corrupted and is
+        /// left alone.
+        #[test]
+        fn repair_mojibake_leaves_any_text_with_a_non_latin1_char_alone(
+            prefix: String,
+            non_latin1 in proptest::char::range('\u{100}', char::MAX),
+            suffix: String,
+        ) {
+            let text = format!("{prefix}{non_latin1}{suffix}");
+            proptest::prop_assert_eq!(repair_mojibake(text.clone()), text);
+        }
+
+        /// The fast path: ASCII survives the corruption unchanged, so
+        /// repairing it has nothing to do.
+        #[test]
+        fn repair_mojibake_leaves_any_ascii_text_alone(text in "[ -~]*") {
+            proptest::prop_assert_eq!(repair_mojibake(text.clone()), text);
+        }
+    }
 }
