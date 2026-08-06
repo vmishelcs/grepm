@@ -77,7 +77,7 @@ performance headroom for large exports.
 | D3 | Low | code | `db/models.rs` is currently dead code |
 | P1–P4 | — | perf | Statement caching, participant lookup caching, count-query duplication, parse-inside-transaction |
 | T1–T4 | — | tests | Missing re-import assertions, ~~shared helpers~~ (T3), ~~property tests~~ (T4) |
-| I1–I3 | — | infra | No Cargo workspace, no CI, fmt drift |
+| I1–I3 | — | infra | ~~No Cargo workspace~~ (I1 done), no CI, fmt drift |
 
 ---
 
@@ -790,13 +790,46 @@ for the wiring step:
 
 ## 10. Infrastructure
 
-- **I1 — No Cargo workspace.** There is no root `Cargo.toml`; `core/` and
+- **I1 — No Cargo workspace** ✅ **Addressed (2026-08-05).** There is no root
+  `Cargo.toml`; `core/` and
   `src-tauri/` build independently with **two separate lockfiles**, so they
   can silently resolve different dependency versions (both depend on
   `serde`/`serde_json`, and `src-tauri` depends on `core` by path). A
   two-line root `[workspace]` manifest unifies the lockfile and enables
   shared `[workspace.lints]` (e.g. `clippy::perf`, `redundant_clone`) in one
   place.
+
+  > **Resolution.** Root `Cargo.toml` with both crates as members and
+  > `resolver = "2"`. The two lockfiles are replaced by one at the root (482
+  > packages, covering `core`'s dev-dependencies too), and `/target` moved
+  > with it.
+  >
+  > `serde`/`serde_json` are declared once in `[workspace.dependencies]` and
+  > referenced as `serde.workspace = true`, so the requirements can't drift
+  > at the manifest level either — the shared lockfile only guarantees one
+  > *resolved* version for a given requirement. Checked before the change:
+  > the two lockfiles happened to agree on both crates at the time
+  > (`serde` 1.0.229, `serde_json` 1.0.151), so the risk was live but not
+  > yet realized.
+  >
+  > `[workspace.lints]` set deliberately small, and both members opt in with
+  > `[lints] workspace = true`: `unsafe_code = "deny"` (neither crate needs
+  > any) and `clippy::redundant_clone = "warn"`. `clippy::perf` was not
+  > added — it's already warn-by-default, so naming it would imply a change
+  > that isn't one. `redundant_clone` found a real instance on its first
+  > run, a needless `Vec` clone in `fts.rs`'s paging test, now fixed.
+  >
+  > Verified `cargo check --workspace`, `cargo clippy --workspace
+  > --all-targets` (clean), and `cargo test --workspace` (158 passing) —
+  > including `src-tauri`, which builds here. The engine-only workflow
+  > (`cd core && cargo test`) still works and is still worth keeping, since
+  > it skips the Tauri dependency tree; the README now documents both.
+  >
+  > The now-orphaned `core/target` and `src-tauri/target` were removed on the
+  > author's go-ahead — cargo builds into the workspace root instead, so
+  > together they were 9 GB of dead cache. The members' `.gitignore` entries
+  > for `/target/` were left in place; they cost nothing and still apply if a
+  > crate is ever built outside the workspace.
 - **I2 — No CI.** There is no `.github/` (or equivalent). The suite is fast
   (~0.5 s) and clippy is already clean — this project is one small workflow
   away from enforcing `fmt --check` + `clippy -D warnings` + `cargo test`,
@@ -849,8 +882,8 @@ about a codebase that is above average:
    see A2; the per-conversation cache (P2) is still open.
 5. **Persist reactions** (C4) with a dedup story that tolerates reactions
    added to old messages.
-6. **Set up workspace + CI** (I1, I2), run `cargo fmt` (I3), switch hot-path
-   queries to `prepare_cached` (P1).
+6. **Set up ~~workspace~~ (done) + CI** (I2), run `cargo fmt` (I3), switch
+   hot-path queries to `prepare_cached` (P1).
 7. Sweep the small items (~~A3~~, ~~A4~~, ~~A5~~, ~~A6~~, ~~T3~~, ~~T4~~
    (all done), A7, D2, D3) opportunistically.
 8. Before the UI renders a single snippet, settle the escaping story (A8).
