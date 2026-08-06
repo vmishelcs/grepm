@@ -38,9 +38,14 @@ pub fn count(root: impl AsRef<Path>) -> Result<usize> {
 
 /// [`count`], for an already-located `messages/inbox` directory.
 pub fn count_inbox(inbox: impl AsRef<Path>) -> Result<usize> {
+    // `DirEntry::file_type` reports the link itself, so symlinked entries are
+    // not counted as conversation folders — matching what `scan_inbox` will
+    // actually import (see the symlink note above `scan_inbox`). Entries that
+    // can't be stat'd are skipped rather than failing this cheap first pass;
+    // `scan` is where per-conversation errors surface.
     let total = fs::read_dir(inbox.as_ref())?
         .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.path().is_dir())
+        .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
         .count();
     Ok(total)
 }
@@ -58,6 +63,12 @@ pub fn scan(root: impl AsRef<Path>) -> Result<impl Iterator<Item = Result<Conver
 /// [`scan`], for an already-located `messages/inbox` directory. A missing
 /// or unreadable inbox surfaces as the iterator's first `Err` item rather
 /// than an eager error.
+///
+/// Symlinks inside the export are not followed: a symlinked conversation
+/// folder is skipped, not imported. An export is a self-contained tree, so
+/// a link in it points somewhere the user didn't ask to import — and
+/// following links would also let a cycle turn the walk infinite. The one
+/// exception is the export root itself, which the caller named explicitly.
 pub fn scan_inbox(inbox: impl AsRef<Path>) -> impl Iterator<Item = Result<ConversationDir>> {
     WalkDir::new(inbox.as_ref())
         .min_depth(1)
@@ -145,14 +156,18 @@ fn validate_root(root: &Path) -> io::Result<()> {
 /// Collects `dir`'s `message_N.json` files keyed by `N`. Parsing the number
 /// here, where files are admitted, means every returned entry has one by
 /// construction — the sort in [`scan`] can key on it with no failure path.
+///
+/// Symlinked entries are skipped, for the same reason [`scan_inbox`] skips
+/// symlinked conversation folders.
 fn message_files_in(dir: &Path) -> io::Result<Vec<(u64, PathBuf)>> {
     let mut message_files = Vec::new();
 
     for entry in fs::read_dir(dir)? {
-        let path = entry?.path();
-        if !path.is_file() {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
             continue;
         }
+        let path = entry.path();
         if let Some(number) = message_number(&path) {
             message_files.push((number, path));
         }
@@ -510,6 +525,79 @@ mod tests {
         let mut folders: Vec<PathBuf> = scan_inbox(&found).map(|c| c.unwrap().folder).collect();
         folders.sort();
         assert_eq!(folders, vec![inbox.join("conv_a"), inbox.join("conv_b")]);
+    }
+
+    // --- symlinks -------------------------------------------------------
+
+    #[cfg(unix)]
+    #[test]
+    fn count_and_scan_both_skip_a_symlinked_conversation_folder() {
+        use std::os::unix::fs::symlink;
+
+        let export = tempdir().unwrap();
+        let inbox = export.path().join("messages").join("inbox");
+        write_file(&inbox.join("conv_a").join("message_1.json"), "{}");
+
+        // A conversation-shaped directory living outside the export, linked
+        // into the inbox. Both passes must agree it isn't ours to import;
+        // if only one of them followed the link, a progress UI driven by
+        // `count` would never reach 100%.
+        let outside = export.path().join("outside").join("conv_linked");
+        write_file(&outside.join("message_1.json"), "{}");
+        symlink(&outside, inbox.join("conv_linked")).unwrap();
+
+        let counted = count(export.path()).unwrap();
+        let folders: Vec<PathBuf> = scan(export.path())
+            .unwrap()
+            .map(|c| c.unwrap().folder)
+            .collect();
+
+        assert_eq!(counted, 1);
+        assert_eq!(folders, vec![inbox.join("conv_a")]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn scan_skips_symlinked_message_files() {
+        use std::os::unix::fs::symlink;
+
+        let export = tempdir().unwrap();
+        let inbox = export.path().join("messages").join("inbox");
+        let conv = inbox.join("conv_a");
+        write_file(&conv.join("message_1.json"), "{}");
+
+        let outside = export.path().join("outside").join("message_2.json");
+        write_file(&outside, "{}");
+        symlink(&outside, conv.join("message_2.json")).unwrap();
+
+        let conversations: Vec<ConversationDir> =
+            scan(export.path()).unwrap().map(Result::unwrap).collect();
+
+        assert_eq!(
+            conversations[0].message_files,
+            vec![conv.join("message_1.json")]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn find_messages_root_does_not_follow_a_symlink_to_the_messages_directory() {
+        use std::os::unix::fs::symlink;
+
+        let export = tempdir().unwrap();
+        // Buried past MESSAGES_ROOT_MAX_DEPTH, so following the link is the
+        // only way this inbox could be reached.
+        let real = export
+            .path()
+            .join("a")
+            .join("b")
+            .join("c")
+            .join("d")
+            .join("messages");
+        make_dir(&real.join("inbox"));
+        symlink(&real, export.path().join("messages")).unwrap();
+
+        assert!(find_messages_root(export.path()).is_err());
     }
 
     #[test]
