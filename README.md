@@ -14,9 +14,11 @@ date range.
 Everything runs locally. Your messages never leave your machine.
 
 > **Status:** the core engine (`grepm_core`) — ingestion, storage, and
-> search — is built and tested (94 tests). The desktop UI (Tauri +
+> search — is built and tested (158 tests). The desktop UI (Tauri +
 > SvelteKit) is still the starter scaffold and is not yet wired to the
-> engine. See [`CODE_REVIEW.md`](CODE_REVIEW.md) (finding D1) and
+> engine, though its toolchain — typecheck, lint, browser-mode tests, and a
+> screenshot script — is in place. See
+> [`ai-code-reviews/CODE_REVIEW.md`](ai-code-reviews/CODE_REVIEW.md) and
 > [`core/KNOWN_ISSUES.md`](core/KNOWN_ISSUES.md) for the current state.
 
 ---
@@ -49,6 +51,9 @@ core/          grepm_core — the engine (pure Rust library, no UI deps)
   tests/       on-disk end-to-end tests (ingestion.rs, search.rs)
 src-tauri/     the Tauri (Rust) desktop shell  — currently scaffold
 src/           the SvelteKit (TypeScript) frontend — currently scaffold
+  lib/ipc/     the only place the frontend calls into Rust
+  lib/         fixtures shared by the tests and the screenshot script
+scripts/       shoot.mjs — renders routes to PNGs for visual review
 samples/       a small synthetic export for manual testing
 ```
 
@@ -201,15 +206,39 @@ npm install
 npm run tauri dev
 ```
 
+### The front end
+
+```sh
+npm run verify   # typecheck (svelte-check), lint (prettier + eslint), test
+npm run format   # apply prettier
+npm run shoot    # screenshot the UI into .screenshots/
+```
+
+`npm run verify` is the definition of done for a front-end change. Tests run
+in real Chromium via Vitest's browser mode — `*.svelte.test.ts` in the
+browser, plain `*.test.ts` in node — with Tauri commands stubbed by `mockIPC`,
+so nothing needs the desktop app running. First run needs a browser:
+
+```sh
+npx playwright install chromium
+```
+
+`npm run shoot` exists because a Tauri window can't be inspected
+programmatically. It drives the plain `vite dev` server in headless Chromium
+with a fake IPC bridge backed by `src/lib/fixtures.ts`, and writes a PNG per
+route and viewport — the only way to actually *look* at the UI from a script
+or an agent.
+
 ### CI
 
 `.github/workflows/ci.yml` runs on every push to `main` and on pull
-requests. Two jobs: **engine** checks formatting across the workspace, then
+requests. Three jobs: **engine** checks formatting across the workspace, then
 lints and tests `grepm_core`; **app** installs the Tauri system libraries
 and type-checks the desktop shell, so a change to `grepm_core`'s API can't
-silently break its one consumer. Both gate on `-D warnings` and pass
-`--locked`, so a stale `Cargo.lock` fails rather than being updated in
-place.
+silently break its one consumer; **web** typechecks, lints, and runs the
+browser-mode tests for the SvelteKit front end. The Rust jobs gate on
+`-D warnings` and pass `--locked`; the web job uses `npm ci`, which is the
+same idea — a stale lockfile fails rather than being updated in place.
 
 To reproduce a CI failure locally, run the same commands:
 
@@ -218,6 +247,7 @@ cargo fmt --all --check
 cargo clippy --locked -p grepm_core --all-targets -- -D warnings
 cargo test --locked -p grepm_core
 cargo clippy --locked -p grepm --all-targets -- -D warnings
+npm run verify
 ```
 
 ### Recommended IDE setup
@@ -229,8 +259,13 @@ cargo clippy --locked -p grepm --all-targets -- -D warnings
 
 ## Further reading
 
-- [`CODE_REVIEW.md`](CODE_REVIEW.md) — a full review of the current code,
-  with findings and suggestions.
+- [`ai-code-reviews/CODE_REVIEW.md`](ai-code-reviews/CODE_REVIEW.md) — a full
+  review of the current code, with findings and suggestions.
 - [`core/KNOWN_ISSUES.md`](core/KNOWN_ISSUES.md) — tracked correctness
   trade-offs and future work, with most of the early ingestion issues now
   resolved.
+- [`CLAUDE.md`](CLAUDE.md) and [`src/CLAUDE.md`](src/CLAUDE.md) — the
+  conventions a contributor (human or agent) is expected to follow. The
+  front-end one is worth reading before touching `src/`; it covers the
+  SPA-only constraints and the snippet-escaping rule that a search UI has to
+  get right.

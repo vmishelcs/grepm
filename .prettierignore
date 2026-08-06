@@ -1,0 +1,31 @@
+# Package Managers
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lock
+bun.lockb
+
+# Build output and generated trees
+/.svelte-kit/
+/build/
+/target/
+/.screenshots/
+/src-tauri/gen/
+
+# Miscellaneous
+/static/
+
+# A synthetic Facebook export. It should look like the real thing, and the
+# real thing is not pretty-printed.
+/samples/
+
+# Owned by other tools: `sv`/`npx skills` write the lockfile, `tauri` writes
+# its own config. Leave their formatting to them.
+/skills-lock.json
+/src-tauri/
+
+# Prose. The docs here are hand-wrapped at 80 columns and some (the code
+# review, KNOWN_ISSUES) are records rather than living documents. Prettier
+# rewrites `*emphasis*` to `_emphasis_` and repacks tables, which is churn on
+# files it can't otherwise improve.
+*.md

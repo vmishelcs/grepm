@@ -67,3 +67,42 @@ jobs:
 
       - name: Lint
         run: cargo clippy --locked -p grepm --all-targets -- -D warnings
+
+  # The SvelteKit front end. Independent of the Rust jobs — it needs no cargo
+  # and no Tauri system libraries, because the tests stub the IPC bridge
+  # rather than launching the desktop app.
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      # `npm ci` installs exactly what package-lock.json pins and fails if the
+      # lockfile is out of sync — the npm equivalent of cargo's `--locked`.
+      - name: Install
+        run: npm ci
+
+      # Browser-mode tests need a real Chromium. Keyed on the lockfile so the
+      # cache is invalidated whenever the pinned playwright version moves.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Check
+        run: npm run check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
