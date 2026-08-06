@@ -79,14 +79,23 @@ stored on conflict — there's no overwrite to blank them out. Only
 `is_still_participant` and `message_count` are still updated on conflict.
 
 Note this does mean two files for the same conversation must agree on
-`title` *and* `thread_path` exactly (including both being present or
-both absent) to be recognized as the same conversation — if a page ever
-reports a `title` of `None` while another reports `Some("...")` for the
-same thread, they'd be treated as two different conversations instead of
-one, and (now that #1 is fixed and every file goes through
+`title` *and* `thread_path` exactly to be recognized as the same
+conversation — if a page ever reports a different `title` for the same
+thread, they'd be treated as two different conversations instead of one,
+and (now that #1 is fixed and every file goes through
 `upsert_conversation`) that would show up as a duplicate `conversations`
 row with a split `message_count`. Not observed in practice, but worth
 knowing if that ever comes up.
+
+Both fields are now required rather than optional, which closes the worse
+version of that hole: NULLs are *distinct* in a SQLite unique index, so
+while they were nullable a file missing either field could never match an
+existing row and silently became its own conversation — both-absent never
+merged, despite what this note used to claim. `RawConversationFile` now
+takes `title`/`thread_path` as `String`, so such a file is refused with a
+parse error naming it, and both columns are `NOT NULL` so the assumption
+is structural rather than hoped for. Real exports always populate both;
+revisit if one ever doesn't.
 
 ## Gaps (parsed but not persisted)
 

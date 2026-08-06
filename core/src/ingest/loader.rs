@@ -343,6 +343,32 @@ mod tests {
     }
 
     #[test]
+    fn load_conversation_merges_every_file_into_one_conversation_row() {
+        // Both files carry the same (title, thread_path), which is what the
+        // upsert conflicts on. Since neither can be NULL — NULLs are
+        // distinct in a SQLite unique index, so they'd never match — this
+        // holds for every file the parser accepts.
+        let export = tempdir().unwrap();
+        let folder = export.path().join("conv");
+        let message_1 = folder.join("message_1.json");
+        let message_2 = folder.join("message_2.json");
+        write_file(&message_1, MESSAGE_1);
+        write_file(&message_2, MESSAGE_2);
+
+        let mut conn = migrated_connection();
+        load_conversation(
+            &mut conn,
+            &conversation_dir(folder, vec![message_1, message_2]),
+        )
+        .unwrap();
+
+        let conversation_count: i64 = conn
+            .query_row("SELECT count(*) FROM conversations", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(conversation_count, 1);
+    }
+
+    #[test]
     fn load_conversation_does_not_duplicate_participants_across_files() {
         // Both fixture files list the same two participants; they should
         // resolve to the same two participant rows, not four.
@@ -653,7 +679,9 @@ mod tests {
         let messages = parse_message_json(
             r#"{
                 "participants": [],
-                "messages": [{"timestamp_ms": 1000, "content": "hi"}]
+                "messages": [{"timestamp_ms": 1000, "content": "hi"}],
+                "title": "Alice",
+                "thread_path": "inbox/conv_a"
             }"#,
         )
         .messages;
@@ -666,7 +694,12 @@ mod tests {
     }
 
     fn empty_conversation(conn: &Connection) -> i64 {
-        queries::upsert_conversation(conn, &parse_message_json(r#"{"participants": []}"#)).unwrap()
+        let json = r#"{
+            "participants": [],
+            "title": "Alice",
+            "thread_path": "inbox/conv_a"
+        }"#;
+        queries::upsert_conversation(conn, &parse_message_json(json)).unwrap()
     }
 
     fn parse_message_json(json: &str) -> crate::ingest::parse::RawConversationFile {

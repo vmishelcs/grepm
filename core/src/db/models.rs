@@ -4,9 +4,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Conversation {
     pub id: i64,
-    pub title: Option<String>,
+    /// Non-optional because the column is `NOT NULL`: `(title, thread_path)`
+    /// is the key that identifies a conversation across its files.
+    pub title: String,
     pub is_still_participant: Option<bool>,
-    pub thread_path: Option<String>,
+    /// See [`Conversation::title`].
+    pub thread_path: String,
     pub message_count: i64,
 }
 

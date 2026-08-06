@@ -55,16 +55,22 @@ pub struct RawConversationFile {
     pub participants: Vec<RawParticipant>,
     #[serde(default)]
     pub messages: Vec<RawMessage>,
-    pub title: Option<String>,
+    /// Required, unlike most fields here, because `(title, thread_path)` is
+    /// the key that stitches a conversation's `message_N.json` files into
+    /// one thread. SQLite treats NULLs as distinct in a unique index, so a
+    /// file missing either one would silently become its own conversation
+    /// instead of merging. Real exports always populate both; rejecting the
+    /// file at the door turns that assumption into a checked, well-located
+    /// error rather than a split thread nobody notices.
+    pub title: String,
     pub is_still_participant: Option<bool>,
-    pub thread_path: Option<String>,
+    /// Required — see [`RawConversationFile::title`].
+    pub thread_path: String,
 }
 
 impl RawConversationFile {
     fn repair_mojibake(&mut self) {
-        if let Some(title) = self.title.take() {
-            self.title = Some(repair_mojibake(title));
-        }
+        self.title = repair_mojibake(mem::take(&mut self.title));
 
         for participant in &mut self.participants {
             participant.name = repair_mojibake(mem::take(&mut participant.name));
@@ -214,7 +220,7 @@ mod tests {
 
         let parsed = parse_conversation_file(&file).unwrap();
 
-        assert_eq!(parsed.title.as_deref(), Some("Alice"));
+        assert_eq!(parsed.title, "Alice");
         assert_eq!(parsed.is_still_participant, Some(true));
         assert_eq!(
             parsed
@@ -358,14 +364,11 @@ mod tests {
 
         let parsed = parse_conversation_file(&file).unwrap();
 
-        assert_eq!(
-            parsed.thread_path.as_deref(),
-            Some("inbox/alice_1234567890")
-        );
+        assert_eq!(parsed.thread_path, "inbox/alice_1234567890");
     }
 
     #[test]
-    fn parse_conversation_file_treats_missing_optional_fields_as_none() {
+    fn parse_conversation_file_treats_missing_is_still_participant_as_none() {
         let export = tempdir().unwrap();
         let file = export.path().join("message_1.json");
         write_file(
@@ -374,22 +377,53 @@ mod tests {
                 "participants": [{"name": "Alice"}],
                 "messages": [
                     {"sender_name": "Alice", "timestamp_ms": 1000, "content": "hi"}
-                ]
+                ],
+                "title": "Alice",
+                "thread_path": "inbox/conv_a"
             }"#,
         );
 
         let parsed = parse_conversation_file(&file).unwrap();
 
-        assert_eq!(parsed.title, None);
         assert_eq!(parsed.is_still_participant, None);
-        assert_eq!(parsed.thread_path, None);
+    }
+
+    #[test]
+    fn parse_conversation_file_rejects_a_file_without_the_conversation_key() {
+        // `(title, thread_path)` is what merges a conversation's files into
+        // one thread; a file missing either would silently become its own
+        // conversation, so it's refused here instead.
+        let export = tempdir().unwrap();
+        let no_title = export.path().join("message_1.json");
+        write_file(
+            &no_title,
+            r#"{"participants": [], "thread_path": "inbox/conv_a"}"#,
+        );
+        let no_thread_path = export.path().join("message_2.json");
+        write_file(&no_thread_path, r#"{"participants": [], "title": "Alice"}"#);
+
+        for file in [&no_title, &no_thread_path] {
+            let err = parse_conversation_file(file).unwrap_err();
+            assert!(
+                matches!(&err, Error::Parse { path, .. } if path == file),
+                "expected a parse error naming {}, got: {err:?}",
+                file.display()
+            );
+        }
     }
 
     #[test]
     fn parse_conversation_file_defaults_messages_to_empty_when_absent() {
         let export = tempdir().unwrap();
         let file = export.path().join("message_1.json");
-        write_file(&file, r#"{"participants": [{"name": "Alice"}]}"#);
+        write_file(
+            &file,
+            r#"{
+                "participants": [{"name": "Alice"}],
+                "title": "Alice",
+                "thread_path": "inbox/conv_a"
+            }"#,
+        );
 
         let parsed = parse_conversation_file(&file).unwrap();
 
@@ -406,7 +440,9 @@ mod tests {
                 "participants": [{"name": "Alice"}],
                 "messages": [
                     {"timestamp_ms": 1000, "content": "hi"}
-                ]
+                ],
+                "title": "Alice",
+                "thread_path": "inbox/conv_a"
             }"#,
         );
 
@@ -467,7 +503,7 @@ mod tests {
 
         // "TomÃ¡s" mojibake repairs to "Tomás" (Tomás).
         let repaired = "Tom\u{e1}s";
-        assert_eq!(parsed.title.as_deref(), Some(repaired));
+        assert_eq!(parsed.title, repaired);
         assert_eq!(parsed.participants[0].name, repaired);
         assert_eq!(parsed.messages[0].sender_name.as_deref(), Some(repaired));
     }

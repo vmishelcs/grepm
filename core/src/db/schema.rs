@@ -10,9 +10,9 @@ use crate::{Error, Result};
 pub const MIGRATIONS: &[&str] = &[r#"
     CREATE TABLE IF NOT EXISTS conversations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
+        title TEXT NOT NULL,
         is_still_participant INTEGER,
-        thread_path TEXT,
+        thread_path TEXT NOT NULL,
         message_count INTEGER NOT NULL DEFAULT 0,
         UNIQUE (title, thread_path)
     );
@@ -257,6 +257,28 @@ mod tests {
             ),
             "a user_version beyond LATEST_VERSION should be refused, got: {err:?}"
         );
+    }
+
+    #[test]
+    fn conversations_reject_a_null_title_or_thread_path() {
+        let conn = migrated_connection();
+
+        for (column, sql) in [
+            (
+                "title",
+                "INSERT INTO conversations (title, thread_path) VALUES (NULL, 'inbox/a')",
+            ),
+            (
+                "thread_path",
+                "INSERT INTO conversations (title, thread_path) VALUES ('Alice', NULL)",
+            ),
+        ] {
+            assert!(
+                conn.execute(sql, []).is_err(),
+                "a NULL {column} would be distinct from every other row in the \
+                 UNIQUE index, so the conversation upsert could never merge it"
+            );
+        }
     }
 
     #[test]
