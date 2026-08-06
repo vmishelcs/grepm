@@ -76,7 +76,7 @@ performance headroom for large exports.
 | D2 | Low | docs | README drift: trait signature, test count, "(re)builds" wording |
 | D3 | Low | code | `db/models.rs` is currently dead code |
 | P1–P4 | — | perf | Statement caching, participant lookup caching, count-query duplication, parse-inside-transaction |
-| T1–T4 | — | tests | Missing re-import assertions, shared helpers, property tests |
+| T1–T4 | — | tests | Missing re-import assertions, ~~shared helpers~~ (T3 done), property tests |
 | I1–I3 | — | infra | No Cargo workspace, no CI, fmt drift |
 
 ---
@@ -646,12 +646,35 @@ Gaps, in priority order:
 - ~~**T2 — NULL-metadata conversation** (C3): two files in one folder with no
   `title`/`thread_path` must produce one conversation.~~ Moot — such files
   are now rejected at parse time (see C3), and the rejection is tested.
-- **T3 — Shared test helpers:** `write_file`, `migrated_connection`, and the
+- **T3 — Shared test helpers** ✅ **Addressed (2026-08-05):**
+  `write_file`, `migrated_connection`, and the
   86-line `make_unreadable` guard are duplicated across four-plus files
   (`schema.rs`, `loader.rs`, `mod.rs`, `scan.rs` tests, and both integration
   files). A `tests/common/mod.rs` (integration) plus a `#[cfg(test)]`
   `test_util` module (unit) removes the drift risk — the two
   `make_unreadable` copies are already one refactor away from diverging.
+
+  > **Resolution.** Both modules created as suggested. Consolidated: 5
+  > copies of `write_file`, 4 of `migrated_connection`, 2 of
+  > `make_unreadable`, and `open_db` (which `search.rs` had open-coded
+  > inline twice instead of copying). Helpers used by a single file —
+  > `table_names`, `conversation_dir`, `fts.rs`'s raw-SQL seeders — stayed
+  > put; moving those would trade duplication for indirection.
+  >
+  > The two `make_unreadable` copies had *already* drifted: their doc
+  > comments no longer matched. Both call sites also carried an identical
+  > copy of the run-as-root escape hatch, so the shared version folds that in
+  > and returns `Option<impl Drop>` — `None` meaning "mode 000 didn't take,
+  > skip". A `let Some(_guard) = … else { return }` replaces the
+  > guard-then-recheck pair. Verified those tests don't now skip silently by
+  > making the else-branch panic: it isn't taken, so the permission-denied
+  > paths still run for real.
+  >
+  > The remaining duplication between `src/test_util.rs` and
+  > `tests/common/mod.rs` is structural and documented in both: `test_util`
+  > is `cfg(test)` inside the library, and each integration test is its own
+  > crate linking the published library, so there is nothing for it to
+  > import. Suite: 154 passing, clippy clean.
 - **T4 — Property test for `repair_mojibake`:** the function is a perfect
   proptest target: for any `s: String`, encoding `s` as UTF-8 bytes and
   mapping each byte to its Latin-1 char must repair back to exactly `s`; and
@@ -795,7 +818,7 @@ about a codebase that is above average:
    added to old messages.
 6. **Set up workspace + CI** (I1, I2), run `cargo fmt` (I3), switch hot-path
    queries to `prepare_cached` (P1).
-7. Sweep the small items (~~A3~~, ~~A4~~, ~~A5~~, ~~A6~~ (all done), A7, D2,
-   D3, T3, T4) opportunistically.
+7. Sweep the small items (~~A3~~, ~~A4~~, ~~A5~~, ~~A6~~, ~~T3~~ (all done),
+   A7, D2, D3, T4) opportunistically.
 8. Before the UI renders a single snippet, settle the escaping story (A8).
    It's the one item here that turns into a vulnerability rather than a bug.
