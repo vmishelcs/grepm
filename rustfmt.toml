@@ -1,0 +1,16 @@
+# rustfmt already defaults to 100, which is the project's code limit. Pinned
+# anyway so the convention lives in the repo rather than in a default a
+# future rustfmt is free to change.
+max_width = 100
+
+# Both crates are edition 2021, but a bare `rustfmt <file>` — which the
+# PostToolUse hook in `.claude/settings.json` runs — defaults to 2015 and
+# would reformat against the wrong grammar. `cargo fmt` reads the edition
+# from Cargo.toml and doesn't need this; the hook does.
+edition = "2021"
+
+# The other half of the convention, "comments wrap at 80", is deliberately
+# not here. rustfmt does have `comment_width` (and defaults it to 80), but it
+# does nothing unless `wrap_comments` is on — and that is nightly-only, while
+# this project builds on stable. `scripts/check-comment-width.sh` enforces it
+# instead, and `scripts/verify-rust.sh` runs it next to `cargo fmt`.

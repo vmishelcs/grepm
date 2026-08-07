@@ -20,7 +20,29 @@
 			"Bash(cargo clippy:*)",
 			"Bash(cargo test:*)",
 			"Bash(cargo check:*)",
+			"Bash(cargo build:*)",
+			"Bash(cargo doc:*)",
+			"Bash(cargo tree:*)",
+			"Bash(cargo metadata:*)",
+			"Bash(rustfmt:*)",
+			"Bash(scripts/verify-rust.sh)",
+			"Bash(./scripts/verify-rust.sh)",
+			"Bash(scripts/check-comment-width.sh:*)",
+			"Bash(./scripts/check-comment-width.sh:*)",
 			"Read(./.screenshots/**)"
+		]
+	},
+	"hooks": {
+		"PostToolUse": [
+			{
+				"matcher": "Edit|Write",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "$CLAUDE_PROJECT_DIR/.claude/hooks/rust-post-edit.sh"
+					}
+				]
+			}
 		]
 	}
 }

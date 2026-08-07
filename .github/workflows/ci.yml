@@ -33,6 +33,12 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
 
+      # The other half of the line-length convention. rustfmt can't do this
+      # one on stable, so without a step here the rule holds only on the
+      # machines that happen to run the PostToolUse hook.
+      - name: Comment width
+        run: ./scripts/check-comment-width.sh
+
       # `--locked` fails if Cargo.lock would need updating, so CI can't
       # silently resolve versions that differ from a local build.
       - name: Lint

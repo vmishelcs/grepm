@@ -8,10 +8,11 @@ end. Nothing leaves the machine.
 
 ```
 core/        grepm_core — the engine. Pure Rust library, no UI deps.
+             See core/CLAUDE.md before editing.
              db/ (SQLite schema, migrations, queries)
              ingest/ (scan → parse → load)
              search/ (the SearchIndex trait + its FTS5 implementation)
-src-tauri/   the Tauri shell.
+src-tauri/   the Tauri shell. See src-tauri/CLAUDE.md before editing.
              library.rs (the managed imports folder + its index)
              commands.rs (the IPC surface), error.rs (serializable errors)
 src/         the SvelteKit front end. See src/CLAUDE.md before editing.
@@ -94,6 +95,7 @@ comes from an index rather than an aggregate.
 ## Commands
 
 ```sh
+./scripts/verify-rust.sh                     # fmt + comment width + clippy + test
 cargo test --workspace                       # engine tests
 cargo clippy --workspace --all-targets       # gated at -D warnings in CI
 cargo fmt --all --check
@@ -113,14 +115,20 @@ tokens, because it is rasterised outside the browser where custom properties
 don't exist; and an XML comment cannot contain `--`, so the token names can't
 be written with their real leading dashes.
 
-`npm run verify` is the front-end definition of done. `npm run shoot` renders
-routes in headless Chromium against a stubbed Tauri bridge and writes PNGs to
-`.screenshots/` — read them to see what the UI actually looks like, since a
-Tauri window can't be observed any other way.
+`./scripts/verify-rust.sh` and `npm run verify` are the two definitions of
+done, one per language. Each runs the gates CI runs, cheapest first.
+
+`npm run shoot` renders routes in headless Chromium against a stubbed Tauri
+bridge and writes PNGs to `.screenshots/` — read them to see what the UI
+actually looks like, since a Tauri window can't be observed any other way.
 
 ## Conventions
 
-- **Rust wraps at 100 columns; comments wrap at 80.**
+- **Rust wraps at 100 columns; comments wrap at 80.** Both halves are checked,
+  by different things: `rustfmt.toml` pins the 100, and
+  `scripts/check-comment-width.sh` enforces the 80 — rustfmt can't, since
+  `wrap_comments` is nightly-only. The checker counts characters, not bytes,
+  which matters in a file this full of em dashes.
 - **The app layer goes through the `SearchIndex` trait** (`core/src/search/`)
   or `search::run`. Tauri commands and Svelte code never see FTS5 SQL.
 - Comments explain _why_, not _what_. Match the density of the surrounding
@@ -136,3 +144,6 @@ Tauri window can't be observed any other way.
   Findings are cited by ID in commits and comments; keep the IDs stable.
 - `AGENTS.md` — the Svelte MCP server's tools (documentation lookup and a
   compiler-backed autofixer). Loaded automatically via `.claude/CLAUDE.md`.
+- `.claude/hooks/rust-post-edit.sh` — runs after any edit to a `.rs` file in
+  this repo: rustfmt through stdin, then the comment-width check. It compiles
+  nothing, so it is not a substitute for `./scripts/verify-rust.sh`.

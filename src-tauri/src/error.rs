@@ -11,9 +11,9 @@ use serde::Serialize;
 /// variant with its data intact, and only the genuinely unexpected ones carry
 /// a rendered message.
 ///
-/// Serialized internally tagged, so the front end sees `{ "kind": "name_in_use",
-/// "name": "Work chats" }` and can switch on `kind`. Mirrored in
-/// `src/lib/ipc/types.ts` — change one, change the other.
+/// Serialized internally tagged, so the front end sees
+/// `{ "kind": "name_in_use", "name": "Work chats" }` and can switch on
+/// `kind`. Mirrored in `src/lib/ipc/types.ts` — change one, change the other.
 #[derive(Debug, Serialize, thiserror::Error)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AppError {
