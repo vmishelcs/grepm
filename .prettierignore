@@ -20,9 +20,14 @@ bun.lockb
 /samples/
 
 # Owned by other tools: `sv`/`npx skills` write the lockfile, `tauri` writes
-# its own config. Leave their formatting to them.
+# its own config, Claude Code writes both settings files. Leave their
+# formatting to them. `settings.local.json` is machine-local and git-ignored,
+# so without this line `npm run lint` fails on a file the repo doesn't control
+# and CI never sees.
 /skills-lock.json
 /src-tauri/
+/.claude/settings.json
+/.claude/settings.local.json
 
 # Prose. The docs here are hand-wrapped at 80 columns and some (the code
 # review, KNOWN_ISSUES) are records rather than living documents. Prettier

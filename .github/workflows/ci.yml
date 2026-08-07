@@ -47,8 +47,9 @@ jobs:
       - name: Test
         run: cargo test --locked -p grepm_core
 
-  # The desktop shell is still scaffold, so this only type-checks it. Its
-  # job is to catch a `grepm_core` change that breaks its one consumer.
+  # The desktop shell: the library's atomic-rename logic, the command surface,
+  # and the tests over both. Split from the engine job because it drags in the
+  # whole Tauri dependency tree, which is what keeps that job fast.
   app:
     name: app
     runs-on: ubuntu-latest
@@ -73,6 +74,11 @@ jobs:
 
       - name: Lint
         run: cargo clippy --locked -p grepm --all-targets -- -D warnings
+
+      # These run against the repo's `samples/` export and need no window, so
+      # the system libraries installed above for clippy are enough.
+      - name: Test
+        run: cargo test --locked -p grepm
 
   # The SvelteKit front end. Independent of the Rust jobs — it needs no cargo
   # and no Tauri system libraries, because the tests stub the IPC bridge

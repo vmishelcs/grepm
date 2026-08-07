@@ -42,6 +42,8 @@ it — is documented in `CODE_REVIEW.md` §1.
 | I1 | — | infra | No Cargo workspace | 2026-08-05 |
 | I2 | — | infra | No CI | 2026-08-05 |
 | I3 | — | infra | fmt drift | 2026-08-05 |
+| T5 | — | tests/ci | CI never ran the shell crate's tests | 2026-08-06 |
+| I4 | Low | infra | `npm run verify` failed on a machine-local file | 2026-08-06 |
 | — | — | style | `LATEST_VERSION` drift risk (§8) | 2026-08-05 |
 | K1 | — | ingest/db | `message_count` was not accumulated across a conversation's files | — |
 | K3 | — | db | Participants were deduped globally by exact name match | — |
@@ -707,6 +709,30 @@ record, a wrong "fixed" entry is worth correcting promptly.
   > corrupted exactly once. The real behavior is pinned by
   > `repair_mojibake_peels_exactly_one_layer_of_corruption`, and KNOWN_ISSUES
   > #10 now cites it as a concrete instance of its residual risk.
+- **T5 — CI never ran the shell crate's tests** ✅ **Addressed (2026-08-06):**
+  the `app` job was clippy-only, justified by a comment that had rotted —
+  "The desktop shell is still scaffold". It wasn't: `src-tauri` holds the
+  library's atomic-rename logic and 25 tests, and `src-tauri/CLAUDE.md` §9
+  openly warned that "a green CI doesn't prove it", with "remember to run it
+  locally" as the mitigation — which is the job CI exists to do.
+
+  > **Resolution.** One step added to the `app` job,
+  > `cargo test --locked -p grepm`, after the existing clippy step. No new
+  > setup: the Tauri system libraries were already installed there for clippy,
+  > and the tests run against the repo's `samples/` export with no window, so
+  > nothing needs a display.
+  >
+  > Both stale comments were corrected rather than deleted. The job comment
+  > now says what the crate actually holds and why it stays a separate job
+  > (the Tauri dependency tree is what keeps the engine job fast — the reason
+  > the split existed all along, and the only one still true).
+  > `src-tauri/CLAUDE.md` §9's warning became its inverse: both Rust jobs now
+  > lint and test their own crate, so a green CI does cover these tests.
+  >
+  > Verified `cargo test --locked -p grepm` locally before committing —
+  > 25 passed, 0 failed — so the first run of the new step starts green.
+  > The job is still not a merge gate; that's I2's open "not done" note about
+  > branch protection, unchanged.
 
 ---
 
@@ -817,3 +843,27 @@ record, a wrong "fixed" entry is worth correcting promptly.
   > is a table", and the settings that would stop rustfmt exploding it would
   > apply everywhere. `cargo fmt --all --check` is now clean and enforced by
   > I2.
+- **I4 — `npm run verify` failed on a machine-local file** ✅ **Addressed
+  (2026-08-06).** `npm run verify` stopped in its second gate —
+  `prettier --check .` flagged `.claude/settings.local.json`, so eslint and
+  vitest never ran. That file is machine-local state written by Claude Code,
+  git-ignored globally and never committed, which meant one of the two
+  definitions of done failed on any machine where the tooling had written it,
+  over formatting the repo doesn't control. CI never sees the file, so the
+  break was local-only — the same shape of drift I3 was about.
+
+  > **Resolution.** Both `.claude` settings files added to `.prettierignore`,
+  > under its existing "Owned by other tools" section — the same rule already
+  > applied to `skills-lock.json` and `/src-tauri/`.
+  >
+  > The finding said `.prettierignore` "already excludes the tracked
+  > `.claude/settings.json`". It did not; that file merely happened to be
+  > prettier-clean, so it had never failed. Excluding only the local sibling
+  > would have left the identical break waiting on the tracked one — and that
+  > one *is* committed, so it would have failed CI rather than one machine.
+  > Both are written by the same tool, which is the reason either is ignored.
+  >
+  > Verified by reproducing the failure first (`prettier --check .` flagging
+  > exactly that one file), then running the full `npm run verify` after: all
+  > three stages pass — svelte-check 0 errors, prettier and eslint clean,
+  > 38 vitest tests passed.

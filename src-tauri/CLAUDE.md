@@ -123,10 +123,9 @@ sees a number — the root `CLAUDE.md` explains why those two disagree.
 
 ## 9. Tests
 
-`./scripts/verify-rust.sh` from the repo root is the definition of done. Note
-that CI splits Rust across two jobs and only **type-checks** this crate — the
-engine job runs the tests. So `cargo test -p grepm` passing locally is on you;
-a green CI doesn't prove it.
+`./scripts/verify-rust.sh` from the repo root is the definition of done. CI
+splits Rust across two jobs — the engine job and this crate's — but both lint
+and test their own crate, so a green CI covers these tests too.
 
 The tests are in `library.rs` under `#[cfg(test)]` and run against the repo's
 `samples/` export. Two habits worth keeping:

@@ -1,9 +1,12 @@
 # Code Review — grepm
 
-**Date:** 2026-08-05
-**Scope:** `core/` (grepm_core), `src-tauri/`, project layout. The SvelteKit
-frontend and Tauri shell are still the starter scaffold and are reviewed only
-as such.
+**Date:** 2026-08-05; app-layer pass 2026-08-06
+**Scope:** `core/` (grepm_core), `src-tauri/`, project layout. At the first
+pass the SvelteKit frontend and Tauri shell were starter scaffold and were
+reviewed only as such. The 2026-08-06 pass reviewed them as real code — the
+library (`src-tauri/src/library.rs`), the command surface and error boundary,
+and every component, route and test under `src/` — plus the queries and
+progress plumbing added to `core` for them.
 
 **Acknowledged up front (per the author):** reactions are not persisted yet,
 and re-imports / further imports into the same database are known-broken.
@@ -32,6 +35,23 @@ Temporary probe tests (written, run, then deleted) exercised the re-import
 failure modes against the real pipeline and against raw SQLite (bundled
 version **3.53.2**). Probe results are cited inline as evidence.
 
+**2026-08-06 pass**, against `ui-dev` at 4cdf311:
+
+| Check | Result |
+|---|---|
+| `cargo test --workspace` | **191 passed** (25 shell + 137 core unit + 12 ingestion + 17 search), 0 failed |
+| `cargo clippy --workspace --all-targets` | clean, 0 warnings |
+| `cargo fmt --all --check` + comment width | clean |
+| `npm run check` (svelte-check) | 0 errors, 0 warnings |
+| `npx eslint .` | clean |
+| `npm run test` (vitest, real Chromium) | **38 passed**, 0 failed |
+| `npm run verify` | **failed** before its test stage — I4, fixed 2026-08-06 |
+
+A temporary probe (written, run, deleted) timed the app-facing read queries
+against a seeded 500,000-message database; its numbers are cited in A17. The
+claim about which thread runs a command was checked against the vendored
+Tauri sources rather than by running a window, and is labeled accordingly.
+
 ---
 
 ## 2. Summary
@@ -53,6 +73,19 @@ newer export over an old database, inflates `conversations.message_count`
 Everything else is doc drift, API hardening, and performance headroom for
 large exports.
 
+**2026-08-06.** The app layer this review was waiting on has landed, and it
+is built the way §9's wiring notes asked: no SQL above the boundary, a
+structured serializable error type, the import off the main thread with
+progress events, and the snippet-escaping rule (A8) written into the front
+end's conventions before any snippet is rendered. The re-import corruption
+above is also now *contained* — the library gives every import a fresh
+database file, so no UI path can reach C1/C2 — though the engine still does
+not enforce that discipline itself. The new findings: a main-thread hazard
+that can freeze the window (A17), disabled-CSP hardening (A18), a temp-file
+leak on crash (A19), and smaller UI, copy, CI and tooling items (A20–A22,
+plus T5 and I4, both fixed 2026-08-06), plus dated status notes inside
+C1/C2, A8, D2 and D3.
+
 **Finding index:**
 
 | ID | Severity | Area | Title |
@@ -68,8 +101,14 @@ large exports.
 | K10 | Low (accepted) | ingest | `repair_mojibake` assumes exports never contain correct non-ASCII text |
 | P1–P4 | — | perf | Statement caching, participant lookup caching, count-query duplication, parse-inside-transaction |
 | T1–T2 | — | tests | Missing re-import assertions, import-failure recovery |
+| A17 | Medium | tauri | Sync commands run on the webview's main thread |
+| A18 | Medium | tauri/security | CSP disabled; unused opener plugin widens the bridge |
+| A19 | Low | library | A crashed import leaks its temp database forever |
+| A20 | Low | ui/errors | A newer build's index is reported as "damaged" |
+| A21 | Low | ui | The windowed list measures once; load order saves it |
+| A22 | Low | ui | Small front-end notes |
 
-Twenty-seven further findings are resolved — see `CODE_REVIEW-addressed.md`.
+Twenty-nine further findings are resolved — see `CODE_REVIEW-addressed.md`.
 
 **Provenance of the `K` findings.** `core/KNOWN_ISSUES.md` was folded into
 these two documents and removed. Its entries keep their original numbers under
@@ -193,6 +232,15 @@ repeated INSERTs.
 
 `import_export`'s doc comment already claims it "(re)builds" the index, so
 this fix makes the comment true for free (see D2).
+
+**Status 2026-08-06.** C1 and C2 both stay open, but the app layer now
+contains the blast radius by construction: the library gives every import a
+fresh database file and offers no path that imports into an existing one
+(`src-tauri/src/library.rs`; the root `CLAUDE.md` cites C1/C2 as a reason
+for that design). The corruption is no longer reachable from the UI.
+Nothing in `grepm_core` enforces the one-import-per-database discipline,
+though — the moment a "refresh this import" feature lands, it lands exactly
+here, so the engine-level fixes and the T1 test are still worth their cost.
 
 ### C4 — Reactions parsed but dropped — **Medium** (acknowledged)
 
@@ -331,6 +379,145 @@ Worth deciding at the same time: whether `conversation_title` and
 `sender_name` get the same treatment. Both are also export-derived,
 sender-influenced strings, and both will be rendered next to the snippet.
 
+**Status 2026-08-06.** Still nothing renders snippets, so still open — but
+the groundwork is ahead of need: the rule is codified as `src/CLAUDE.md`
+rule 1, the shared fixtures carry a live `<img onerror>` payload in a title,
+a sender name *and* a snippet, and the sidebar already renders
+export-derived titles and participant names as text nodes with a browser
+test pinning that (`renders a title containing markup as text`). The answer
+to the last paragraph's question turned out to be yes.
+
+### A17 — Sync commands run on the webview's main thread — **Medium**
+
+Every command except `start_import` is a plain `fn`, and Tauri executes
+those inline on the main thread: wry delivers the IPC request on the UI
+thread, and a non-`async` command runs to completion inside that handler
+(`ExecutionContext::Blocking` in `tauri-macros`' `command/wrapper.rs`; the
+Tauri docs state it directly — "Commands without the *async* keyword are
+executed on the main thread"). Verified against the vendored sources, not by
+running a window. Two consequences, one latent and one live:
+
+- **The freeze.** `start_import` holds the `library` mutex for its whole
+  run — deliberately, and the comment argues nothing else needs the lock
+  meanwhile because the launch screen is replaced by the progress view. That
+  is true of this window's own navigation and of nothing else. A webview
+  reload during an import (trivial in a dev build, platform-dependent in
+  release) lands back on the launch screen, whose `list_imports` then blocks
+  **the event loop** on a mutex that stays held for minutes: no repaint, no
+  close, no progress events — the window is dead until the import finishes.
+  The same holds for `open_import` and `delete_import` the moment any future
+  UI can reach them while an import runs.
+- **The jank.** `active_import` and `list_conversations` run full-scan
+  aggregates over the open database. **[verified]** against a seeded
+  database of 2,000 conversations / 500,000 messages / four participants
+  each: `db::queries::conversations` takes **~65 ms** in release and
+  **~380 ms** in debug; `stats` 6–8 ms. That work runs on the thread that
+  paints the window, on every `/opened` load, and it grows linearly with the
+  export — plus the IPC serialization of every summary on top.
+
+**Recommendation.** Mark the read commands `#[tauri::command(async)]` — on a
+sync `fn` that alone moves execution onto the async runtime — and make the
+three `library`-lock takers genuinely async with the lock-holding section in
+`spawn_blocking`, the pattern `start_import` already uses. A command that
+arrives mid-import then *pends*, as a promise the front end already awaits,
+instead of freezing the event loop. Worth deciding before the search UI
+lands: search will put a per-keystroke query behind a command, which is the
+worst place to discover this.
+
+### A18 — CSP is disabled, and an unused plugin widens the bridge — **Medium (hardening)**
+
+`tauri.conf.json` still carries the scaffold's `"security": { "csp": null }`.
+A8 explains why this app's threat model is unusual — the corpus is text
+strangers wrote, rendered in a webview that reaches the IPC bridge. The
+escaping rule is the primary defense, but it is one `{@html}` slip away from
+mattering, and with a CSP configured Tauri injects nonces/hashes for its
+bundled assets so an injected inline script stops short of executing. With
+`null` there is no second line. The app is offline by design — nothing
+legitimate loads from a remote origin — so a restrictive policy costs
+nothing; start from Tauri's documented default (`default-src 'self'` plus
+the `ipc:`/`http://ipc.localhost` connect-src the bridge needs) and verify
+the app still runs.
+
+Separately, `tauri_plugin_opener` is initialized and granted
+`opener:default`, and nothing in `src/` imports `@tauri-apps/plugin-opener`
+— scaffold residue. An injected script's reach is exactly the set of
+commands exposed on the bridge, and today that includes "open a URL or path
+with the system handler" in exchange for no feature. Drop the plugin
+(`Cargo.toml`, `lib.rs`, `capabilities/default.json`, `package.json`) until
+something needs it, then re-add it scoped to what that feature opens.
+
+### A19 — A crashed import leaks its temp database forever — **Low**
+
+The failure *path* cleans up: `import_into_library` deletes
+`.tmp-<id>.sqlite3` when the ingest returns an error. A failure that never
+returns — a crash, a kill, a power cut, minutes into a multi-GB import —
+leaves the temp file in the imports folder with nothing pointing at it and
+nothing that will ever delete it: `allocate_id` steps around it, no listing
+shows it, and the module doc's "Nothing is left behind on failure" quietly
+becomes untrue. Two smaller residue paths sit in the same function: a failed
+`fs::rename` into place returns without the cleanup the ingest-failure arm
+has, and a failed `write_index` *after* the rename orphans a fully-built,
+real-named database that no index entry will ever list.
+
+**Recommendation.** Sweep `.tmp-*.sqlite3` from the imports folder at
+launch, before the first command can start an import — at that moment any
+temp file is stale by definition. Extend the cleanup arm over the rename
+failure, and consider removing the renamed file when `write_index` fails, so
+the all-or-nothing claim is true on every path. Worth a line in the module
+doc while there: all of this assumes one process. Two running instances
+share the folder with no cross-process lock; the rename keeps each index
+write atomic, but two writers can silently drop each other's entries.
+
+### A20 — A newer build's index is reported as "damaged" — **Low**
+
+`read_index` folds two different situations into `CorruptIndex`: JSON that
+does not parse, and a well-formed index whose `version` is newer than the
+build understands. The schema layer keeps those apart
+(`UnsupportedSchemaVersion` vs `InvalidSchemaVersion`) precisely so the UI
+can say "update grepm" instead of "your data is damaged" — but for the
+index, `$lib/errors` renders both as "The library index is damaged", which
+is the wrong message with the wrong emotional weight for a user who merely
+launched an older build after a newer one. A `NewerIndex { found,
+supported }` variant, mirrored in `types.ts` with its own copy in
+`errors.ts`, aligns the two version checks.
+
+### A21 — The windowed list measures once, and only load order saves it — **Low**
+
+`ConversationList`'s `trackSize` attachment measures the row pitch from the
+first `li.row` in the DOM. If no row exists yet it returns without setting
+anything, and nothing retries: the `ResizeObserver` watches the `ul`, whose
+size never changes when rows are added inside its fixed flex height. Mounted
+empty, the list stays unmeasured forever — `rowHeight` 0, spacers 0px, and
+rendering silently capped at the 40 `UNMEASURED_ROWS` with the rest of the
+list unreachable.
+
+It works today because `/opened` gates the reader behind `{#if info}` and
+assigns `info` and `conversations` from one `Promise.all`, so the list never
+mounts before its rows exist. That invariant is held two files away from the
+code that depends on it, and the windowing suite cannot catch a regression —
+it drives the page, so it inherits the same load order. A small guard makes
+the component correct on its own: re-run the measurement when rows exist but
+`measured` is still false (an `$effect` keyed on the first non-empty
+`visible`), or measure from a prop-driven callback rather than only from the
+observer.
+
+### A22 — Small front-end notes — **Low**
+
+- **Menu focus is dropped on close.** Opening the `...` menu moves focus
+  onto the menu item; Escape or an outside click closes it without restoring
+  focus, which lands back on `<body>` and costs a keyboard user their place.
+  Return focus to the triggering button on close. (Arrow-key navigation can
+  wait — the menu has one item.)
+- **One test stubs the bridge twice.** `page.svelte.test.ts`'s "reports an
+  import whose file has gone missing" calls `stubCommands` and then
+  immediately replaces the stub with its own `mockIPC`; the first call is
+  dead and reads as though both were needed.
+- **`shoot.mjs` answers a `search` command that doesn't exist.** Harmless
+  today, but the file's own comment promises entries are added *when* a
+  command is added, and a pre-registered stub will mask the "no fixture"
+  error precisely when the real search command lands with a different name
+  or shape.
+
 ---
 
 ## 5. Documentation drift
@@ -342,7 +529,8 @@ sender-influenced strings, and both will be rendered next to the snippet.
   `Result` — a meaningful difference, since not leaking backend error types is
   one of the crate's stated design points (see A10).
 - The hard-coded test count will keep rotting; consider dropping it or
-  wording it loosely.
+  wording it loosely. (It has: the README still says 158, and the workspace
+  now runs 191 — the drift this bullet predicted.)
 - `import_export`'s doc comment says it "(re)builds the full-text search
   index"; it appends (see C2). If the C2 `rebuild` fix lands, the comment
   becomes true for free.
@@ -365,6 +553,15 @@ have no equivalent.
 Either wire them up with the first Tauri command, or mark the module with a
 short comment stating its intended consumer so it isn't mistaken for
 abandoned code.
+
+**Status 2026-08-06.** The first Tauri commands landed and did *not* use
+these types: the boundary grew its own instead (`ConversationSummary` and
+`Stats` in `queries.rs`, `ImportEntry` in the shell), and
+`src/lib/ipc/types.ts` explicitly declines to mirror `models.rs` "because
+none of it crosses the boundary yet". The module is now dead code with a
+working counter-example beside it, which strengthens the delete option:
+whatever the search UI ends up needing, the pattern so far is to define it
+where it is queried, with tests, not to reach for these.
 
 ---
 
@@ -458,33 +655,41 @@ Measured against the Apollo Rust handbook conventions the project uses:
 
 ---
 
-## 9. Tauri / frontend (scaffold)
+## 9. Tauri / frontend (reviewed 2026-08-06)
 
-`src-tauri/src/lib.rs` is the untouched template (`greet` command);
-`src/routes/+page.svelte` likewise. Nothing to review yet beyond flagging,
-for the wiring step:
+At the first pass this section could only leave wiring advice for a layer
+that didn't exist. The layer now exists, and every piece of that advice was
+followed, verifiably: no SQL crosses the boundary (the two queries the UI
+needed were added to `queries.rs`, with tests); the `Connection` lives in
+managed state behind a `Mutex` and the import runs in `spawn_blocking` with
+progress driven by `find_messages_root` + `count_inbox`, the `total`
+upper-bound caveat documented on both sides of the wire; `AppError` is a
+structured, internally-tagged `Serialize` enum rather than a flattened
+string, mirrored by hand in `types.ts` with narrowing and user copy kept in
+`$lib/errors`; and the snippet rule is codified ahead of need (see the A8
+status note).
 
-- Keep the app layer behind the `SearchIndex` trait / `search::run`
-  composition root — the boundary is already designed for exactly this; the
-  Tauri command should never see FTS5 SQL.
-- `rusqlite::Connection` is `!Sync`; under Tauri it will need to live in
-  managed state behind a `Mutex`, or a dedicated DB thread/channel.
-  `import_export` is long-running and must not run on the main thread — use
-  an async command with `spawn_blocking`, and `scan::count_inbox` +
-  `find_messages_root` already exist to drive a progress UI (mind A5).
-- `grepm_core::Error` will need a serializable mapping for command results,
-  since Tauri requires `Serialize` errors; the structured error enum makes
-  that straightforward — resist flattening to `String` at the boundary.
-- Snippet rendering is the one step in the wiring with a security
-  consequence: escape before substituting the match markers, or skip raw-HTML
-  insertion entirely. See A8.
+Beyond the advice, the layer has real design in it — the atomic-rename
+discipline on every state change, the index that may deliberately drift from
+the folder, delete ordered so a partial failure is retryable, and a windowed
+sidebar whose load-bearing invariants are documented and tested. Nothing in
+it rises to the engine review's C severity: there is no data-corruption path
+in the shell. What this pass found is filed above — A17 (main-thread
+commands, the one that can freeze the window), A18 (CSP), A19 (temp-file
+residue), A20 (version copy), A21 (windowing measurement), A22 (small
+notes) — plus the two gate gaps it found closed the same day, T5 (CI never
+ran this crate's tests) and I4 (`npm run verify` failing on a machine-local
+file), now in `CODE_REVIEW-addressed.md`.
 
 ---
 
 ## 10. Infrastructure
 
-All three infrastructure findings (I1 — no Cargo workspace, I2 — no CI,
-I3 — fmt drift) are resolved. See `CODE_REVIEW-addressed.md` §10.
+All four findings (I1 — no Cargo workspace, I2 — no CI, I3 — fmt drift,
+I4 — `npm run verify` failing on a machine-local file) are resolved. See
+`CODE_REVIEW-addressed.md` §10. I2's resolution block keeps one open note
+that is not a code change: CI reports after a push to `main` rather than
+gating it, and making it block needs branch protection in repo settings.
 
 ---
 
@@ -519,23 +724,57 @@ about a codebase that is above average:
   -chronological ordering deliberately de-confounded; the FTS5-versus-`LIKE`
   distinguishing scenarios).
 
+From the 2026-08-06 pass, in the same spirit:
+
+- **The library's failure ordering** — build under a temp name → rename →
+  list; delete files → delist — is reasoned about explicitly at each step,
+  with the recoverable state after every possible interruption named in a
+  comment, and the delete tests build a throwaway export so a bug that
+  reached for `source_path` couldn't destroy the fixture proving it exists.
+- **`AppError` as a UI contract** — a variant per case the UI branches on,
+  data intact, wire shape and user-facing copy in separate files, and the
+  hand-mirroring rule written identically at both ends of the wire.
+- **The windowed sidebar** documents its two load-bearing invariants
+  (uniform row pitch, externally bounded height), is tested for measurement
+  rather than for hardcoded row counts, and reports `aria-setsize`/
+  `aria-posinset` for the whole list rather than the mounted slice.
+- **Front-end test discipline matches the engine's** — `mockIPC` stubs that
+  throw on unexpected commands so a screen can't quietly gain an unanswered
+  call, fixtures shared between the vitest suite and the screenshot script,
+  the injection payload kept permanently in those fixtures, and
+  sample-export tests asserting shapes rather than totals so the fixture can
+  grow.
+- **Progress reporting done honestly** — `total` documented as an upper
+  bound at the type, the wrapper, the TS mirror *and* the UI (which treats
+  the promise resolving, not `done == total`, as completion), with the
+  no-going-backwards property pinned by a test.
+
 ---
 
 ## 12. Prioritized recommendations
 
-1. **Fix re-import** (C1 + C2): recompute `message_count` from `messages`
-   inside `load_conversation`, and switch `populate_fts` to FTS5's `'rebuild'`
-   command. Add the T1 invariants test, with the `rank = 1` integrity check.
-   This closes the known "re-imports are broken" issue end to end, and the
-   index is corrupt *today* — not latently.
-2. **Persist reactions** (C4) with a dedup story that tolerates reactions
+The first pass's recommendation 1 — the two one-line fixes to the definitions
+of done (T5 + I4) — was done on 2026-08-06, and both gates now mean what they
+say. Its resolution blocks are in `CODE_REVIEW-addressed.md`. What remains,
+in order:
+
+1. **Decide the command-threading pattern now** (A17): `async` commands with
+   `spawn_blocking` around the lock-holders. The freeze is an edge case
+   today; the search UI will put a per-keystroke query behind a command,
+   which is where the main-thread habit gets expensive.
+2. **Fix re-import in the engine** (C1 + C2): recompute `message_count`
+   inside `load_conversation`, switch `populate_fts` to FTS5's `'rebuild'`,
+   add the T1 invariants test with the `rank = 1` integrity check. The
+   library's one-file-per-import design means no user can trigger it today,
+   which lowers the urgency — but the index corruption is real, and the next
+   import-shaped feature inherits it.
+3. Before the UI renders a single snippet, settle the escaping story (A8) —
+   the groundwork is already in place — and pair it with the CSP and plugin
+   trim (A18), which is what stands behind the escaping if it ever slips.
+4. **Persist reactions** (C4) with a dedup story that tolerates reactions
    added to old messages, and **settle the partial-import story** (C5).
-   Both are Tauri-layer prerequisites.
-3. Before the UI renders a single snippet, settle the escaping story (A8).
-   It's the one item here that turns into a vulnerability rather than a bug.
-4. **Performance headroom** (§6), both called out when their neighbouring
-   findings were closed: `prepare_cached` on the hot-path queries (P1), and
-   the per-conversation participant cache (P2) — `find_or_create_participant`
-   is now the single place to add it.
-5. Sweep the remaining small items (A7, D2, D3, and the `Scan { path, source }`
-   error-context nit) opportunistically.
+5. **Performance headroom** (§6): `prepare_cached` on the hot-path queries
+   (P1) and the per-conversation participant cache (P2) —
+   `find_or_create_participant` is the single place to add it.
+6. Sweep the remaining small items opportunistically: A7, A19–A22, D2, D3,
+   and the `Scan { path, source }` error-context nit.
