@@ -1,0 +1,58 @@
+{
+  "participants": [
+    {
+      "name": "Bo Vasquez"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Bo Vasquez",
+      "timestamp_ms": 1597962515536,
+      "content": "wait what happened",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1597962264458,
+      "content": "na\u00c3\u00afve of me to think it'd be quiet",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Bo Vasquez",
+      "timestamp_ms": 1597960237691,
+      "content": "sounds good, see you soon!",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1597957779539,
+      "content": "no worries at all",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Bo Vasquez",
+      "timestamp_ms": 1597954501185,
+      "content": "sounds good, see you soon!",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Bo Vasquez",
+      "timestamp_ms": 1597951578621,
+      "content": "she said \u00e2\u0080\u009csee you tomorrow\u00e2\u0080\u009d \u00e2\u0080\u0094 can't wait \u00f0\u009f\u00a5\u00b3",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Bo Vasquez",
+  "is_still_participant": true,
+  "thread_path": "inbox/bovasquez_6647217466087465",
+  "magic_words": []
+}

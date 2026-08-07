@@ -1,0 +1,69 @@
+{
+  "participants": [
+    {
+      "name": "Kwame Haddad"
+    },
+    {
+      "name": "Clara Zielinski"
+    },
+    {
+      "name": "Zara Oyelaran"
+    },
+    {
+      "name": "Iris Moreau"
+    },
+    {
+      "name": "Leila Petrov"
+    },
+    {
+      "name": "Jae Kowalski"
+    },
+    {
+      "name": "Giulia Costa"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Zara Oyelaran",
+      "timestamp_ms": 1722030081350,
+      "content": "na\u00c3\u00afve of me to think it'd be quiet",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Jae Kowalski",
+      "timestamp_ms": 1722029056697,
+      "content": "should we just meet there instead?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1722027620284,
+      "content": "sounds good, see you soon!",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1722023745338,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Giulia Costa",
+      "timestamp_ms": 1722020932087,
+      "content": "let me check and get back to you",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Fantasy League",
+  "is_still_participant": true,
+  "thread_path": "inbox/fantasyleague_5702992851051483",
+  "magic_words": []
+}

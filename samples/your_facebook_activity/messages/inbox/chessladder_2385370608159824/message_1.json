@@ -1,0 +1,87 @@
+{
+  "participants": [
+    {
+      "name": "Diego Vasquez"
+    },
+    {
+      "name": "Priyanka Bernard"
+    },
+    {
+      "name": "Clara Adeyemi"
+    },
+    {
+      "name": "Giulia Bernard"
+    },
+    {
+      "name": "Camille Zielinski"
+    },
+    {
+      "name": "Oscar Bernard"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Camille Zielinski",
+      "timestamp_ms": 1576197178603,
+      "content": "d\u00c3\u00a9j\u00c3\u00a0 vu honestly",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Priyanka Bernard",
+      "timestamp_ms": 1576193893834,
+      "content": "I'm going to have to bail, sorry \u00e2\u0080\u0094 long day",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Clara Adeyemi",
+      "timestamp_ms": 1576192173633,
+      "content": "should we just meet there instead?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Priyanka Bernard",
+      "timestamp_ms": 1576190840832,
+      "content": "who's bringing the snacks",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1576187000493,
+      "content": "she said \u00e2\u0080\u009csee you tomorrow\u00e2\u0080\u009d \u00e2\u0080\u0094 can't wait \u00f0\u009f\u00a5\u00b3",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Diego Vasquez",
+      "timestamp_ms": 1576182099216,
+      "content": "rescheduling to next week if that's ok",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Diego Vasquez",
+      "timestamp_ms": 1576178797374,
+      "content": "\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5\u00f0\u009f\u0094\u00a5 let's gooo",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Giulia Bernard",
+      "timestamp_ms": 1576176377542,
+      "content": "just landed, heading over now",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Chess Ladder",
+  "is_still_participant": true,
+  "thread_path": "inbox/chessladder_2385370608159824",
+  "magic_words": []
+}

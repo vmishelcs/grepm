@@ -1,0 +1,30 @@
+{
+  "participants": [
+    {
+      "name": "Lucia Jansen"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Lucia Jansen",
+      "timestamp_ms": 1723517768077,
+      "content": "no worries at all",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1723517005639,
+      "content": "should we just meet there instead?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Lucia Jansen",
+  "is_still_participant": true,
+  "thread_path": "inbox/luciajansen_7651929167882562",
+  "magic_words": []
+}

@@ -290,7 +290,7 @@ mod tests {
         // Wrong participant.
         insert_message(&conn, team, bob, 2000, "coffee break");
         // Wrong conversation (a separate "Alice" row scoped to `dm`, see
-        // KNOWN_ISSUES.md #3).
+        // review finding K3).
         insert_message(&conn, dm, alice_in_dm, 2000, "coffee break");
         // Wrong timestamp.
         insert_message(&conn, team, alice, 9000, "coffee break");

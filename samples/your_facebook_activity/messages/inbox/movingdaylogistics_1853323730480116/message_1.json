@@ -1,0 +1,67 @@
+{
+  "participants": [
+    {
+      "name": "Bjorn Yilmaz"
+    },
+    {
+      "name": "Kwame Nakamura"
+    },
+    {
+      "name": "Iris Eriksen"
+    },
+    {
+      "name": "Noor Kowalski"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Noor Kowalski",
+      "timestamp_ms": 1713782251627,
+      "content": "caf\u00c3\u00a9 on the corner at 9?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Iris Eriksen",
+      "timestamp_ms": 1713778681658,
+      "content": "ugh my wifi's down again",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Bjorn Yilmaz",
+      "timestamp_ms": 1713773886458,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Kwame Nakamura",
+      "timestamp_ms": 1713773532559,
+      "content": "the r\u00c3\u00a9sum\u00c3\u00a9 looks great btw",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Noor Kowalski",
+      "timestamp_ms": 1713772650077,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Noor Kowalski",
+      "timestamp_ms": 1713768579850,
+      "content": "running about ten minutes late sorry",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Moving Day Logistics",
+  "is_still_participant": true,
+  "thread_path": "inbox/movingdaylogistics_1853323730480116",
+  "magic_words": []
+}

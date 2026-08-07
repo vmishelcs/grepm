@@ -1,0 +1,30 @@
+{
+  "participants": [
+    {
+      "name": "Soren Adeyemi"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1702490795681,
+      "content": "perfect, booked it",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Vlad Mishel",
+      "timestamp_ms": 1702488400324,
+      "content": "let me check and get back to you",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Soren Adeyemi",
+  "is_still_participant": true,
+  "thread_path": "inbox/sorenadeyemi_1899180519637858",
+  "magic_words": []
+}

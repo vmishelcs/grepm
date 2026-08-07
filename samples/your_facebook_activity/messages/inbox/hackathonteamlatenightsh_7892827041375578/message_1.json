@@ -1,0 +1,62 @@
+{
+  "participants": [
+    {
+      "name": "Ximena Yilmaz"
+    },
+    {
+      "name": "Jonas Tanaka"
+    },
+    {
+      "name": "Wren Costa"
+    },
+    {
+      "name": "Mira Petrov"
+    },
+    {
+      "name": "Jae Silva"
+    },
+    {
+      "name": "Eleni Petrov"
+    },
+    {
+      "name": "Soren Jansen"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Eleni Petrov",
+      "timestamp_ms": 1660502242609,
+      "content": "should we just meet there instead?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Soren Jansen",
+      "timestamp_ms": 1660500907990,
+      "content": "she said \u00e2\u0080\u009csee you tomorrow\u00e2\u0080\u009d \u00e2\u0080\u0094 can't wait \u00f0\u009f\u00a5\u00b3",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Jonas Tanaka",
+      "timestamp_ms": 1660497672190,
+      "content": "can you send me the address?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Jae Silva",
+      "timestamp_ms": 1660493108740,
+      "content": "running about ten minutes late sorry",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Hackathon Team \u00e2\u0080\u0094 Late Night Shift",
+  "is_still_participant": true,
+  "thread_path": "inbox/hackathonteamlatenightsh_7892827041375578",
+  "magic_words": []
+}

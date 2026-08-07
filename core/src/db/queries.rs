@@ -1,7 +1,98 @@
+use std::collections::HashMap;
+
 use rusqlite::{params, Connection, OptionalExtension};
+use serde::Serialize;
 
 use crate::ingest::parse::{MessageType, RawConversationFile, RawMessage};
 use crate::Result;
+
+/// How much a database holds. Exists so the app layer can show the size of an
+/// import without writing SQL against this crate's schema.
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct Stats {
+    pub message_count: i64,
+    pub conversation_count: i64,
+}
+
+/// Counts the rows [`Stats`] describes. Cheap on a database that was just
+/// imported into, since both tables are already in the page cache.
+pub fn stats(conn: &Connection) -> Result<Stats> {
+    Ok(Stats {
+        message_count: conn.query_row("SELECT count(*) FROM messages", [], |row| row.get(0))?,
+        conversation_count: conn
+            .query_row("SELECT count(*) FROM conversations", [], |row| row.get(0))?,
+    })
+}
+
+/// One conversation, summarised for a list: who is in it and how much of it
+/// there is, without reading a single message.
+#[derive(Clone, Debug, Serialize)]
+pub struct ConversationSummary {
+    pub id: i64,
+    pub title: String,
+    /// Sorted by name, so the order doesn't wander between imports.
+    pub participants: Vec<String>,
+    /// Counted from the `messages` rows actually stored, which is what a
+    /// search over this conversation can return. Deliberately not
+    /// `conversations.message_count` — that is the total the export *claimed*,
+    /// summed before duplicate messages were dropped, so the two disagree
+    /// whenever a conversation was split across files that overlapped.
+    pub message_count: i64,
+    /// `None` only for a conversation left with no messages at all.
+    pub last_message_ms: Option<i64>,
+}
+
+/// Every conversation, most recently active first — the order a mail client or
+/// Messenger puts them in.
+///
+/// Two queries rather than one with `group_concat`, because a participant's
+/// name is export-derived text that could contain whatever separator we
+/// picked, and re-splitting it would be a guess.
+pub fn conversations(conn: &Connection) -> Result<Vec<ConversationSummary>> {
+    let mut names: HashMap<i64, Vec<String>> = HashMap::new();
+    let mut statement = conn.prepare(
+        "SELECT cp.conversation_id, p.name \
+         FROM conversation_participants cp \
+         JOIN participants p ON p.id = cp.participant_id \
+         ORDER BY p.name",
+    )?;
+    let rows = statement.query_map([], |row| {
+        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+    })?;
+    for row in rows {
+        let (conversation_id, name) = row?;
+        names.entry(conversation_id).or_default().push(name);
+    }
+
+    // NULLs sort last under DESC in SQLite, so conversations left with no
+    // messages fall to the bottom rather than the top.
+    let mut statement = conn.prepare(
+        "SELECT c.id, c.title, count(m.id), max(m.timestamp_ms) \
+         FROM conversations c \
+         LEFT JOIN messages m ON m.conversation_id = c.id \
+         GROUP BY c.id \
+         ORDER BY max(m.timestamp_ms) DESC, c.title ASC",
+    )?;
+    let summaries = statement
+        .query_map([], |row| {
+            Ok(ConversationSummary {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                participants: Vec::new(),
+                message_count: row.get(2)?,
+                last_message_ms: row.get(3)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+
+    Ok(summaries
+        .into_iter()
+        .map(|mut summary| {
+            summary.participants = names.remove(&summary.id).unwrap_or_default();
+            summary
+        })
+        .collect())
+}
 
 /// Inserts a conversation, or, if a row with the same `title`/`thread_path`
 /// already exists (e.g. a conversation split across multiple
@@ -158,4 +249,124 @@ pub fn insert_attachments(conn: &Connection, message_id: i64, message: &RawMessa
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ingest::import_export;
+    use crate::test_util::{migrated_connection, write_file};
+
+    #[test]
+    fn stats_are_zero_for_an_empty_database() {
+        let conn = migrated_connection();
+
+        let stats = stats(&conn).unwrap();
+
+        assert_eq!(stats.message_count, 0);
+        assert_eq!(stats.conversation_count, 0);
+    }
+
+    /// Two conversations whose newest messages are in a known order, plus a
+    /// duplicate message inside one of them.
+    fn seeded_export(root: &std::path::Path) {
+        let inbox = root.join("messages").join("inbox");
+        write_file(
+            &inbox.join("alice_and_bob").join("message_1.json"),
+            r#"{
+                "participants": [{"name": "Bob"}, {"name": "Alice"}],
+                "messages": [
+                    {"sender_name": "Alice", "timestamp_ms": 1000, "content": "hi"},
+                    {"sender_name": "Bob", "timestamp_ms": 2000, "content": "hello"},
+                    {"sender_name": "Alice", "timestamp_ms": 1000, "content": "hi"}
+                ],
+                "title": "Alice and Bob",
+                "is_still_participant": true,
+                "thread_path": "inbox/alice_and_bob"
+            }"#,
+        );
+        write_file(
+            &inbox.join("brunch").join("message_1.json"),
+            r#"{
+                "participants": [{"name": "Carol"}, {"name": "Alice"}, {"name": "Dan"}],
+                "messages": [
+                    {"sender_name": "Carol", "timestamp_ms": 9000, "content": "sunday?"}
+                ],
+                "title": "The Brunch Crew",
+                "is_still_participant": true,
+                "thread_path": "inbox/brunch"
+            }"#,
+        );
+    }
+
+    fn seeded_conversations() -> Vec<ConversationSummary> {
+        let export = tempfile::tempdir().unwrap();
+        seeded_export(export.path());
+        let mut conn = migrated_connection();
+        import_export(&mut conn, export.path()).unwrap();
+        conversations(&conn).unwrap()
+    }
+
+    #[test]
+    fn conversations_are_listed_most_recently_active_first() {
+        let listed = seeded_conversations();
+
+        let titles: Vec<_> = listed.iter().map(|c| c.title.as_str()).collect();
+        assert_eq!(titles, vec!["The Brunch Crew", "Alice and Bob"]);
+    }
+
+    #[test]
+    fn conversations_carry_their_participants_sorted_by_name() {
+        let listed = seeded_conversations();
+
+        let brunch = &listed[0];
+        assert_eq!(brunch.participants, vec!["Alice", "Carol", "Dan"]);
+        assert_eq!(listed[1].participants, vec!["Alice", "Bob"]);
+    }
+
+    #[test]
+    fn a_conversations_message_count_is_the_rows_stored_not_the_rows_claimed() {
+        let listed = seeded_conversations();
+
+        let alice_and_bob = &listed[1];
+        // The export listed three messages, two of them identical. Only two
+        // rows survive dedup, and two is what a search over this conversation
+        // could ever turn up — so two is what the list must say.
+        assert_eq!(alice_and_bob.message_count, 2);
+        assert_eq!(alice_and_bob.last_message_ms, Some(2000));
+    }
+
+    #[test]
+    fn an_empty_database_lists_no_conversations() {
+        let conn = migrated_connection();
+
+        assert!(conversations(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn stats_count_what_was_imported() {
+        let export = tempfile::tempdir().unwrap();
+        let inbox = export.path().join("messages").join("inbox");
+        write_file(
+            &inbox.join("alice_and_bob").join("message_1.json"),
+            r#"{
+                "participants": [{"name": "Alice"}, {"name": "Bob"}],
+                "messages": [
+                    {"sender_name": "Alice", "timestamp_ms": 1000, "content": "hi"},
+                    {"sender_name": "Bob", "timestamp_ms": 2000, "content": "hello"}
+                ],
+                "title": "Alice and Bob",
+                "is_still_participant": true,
+                "thread_path": "inbox/alice_and_bob"
+            }"#,
+        );
+
+        let mut conn = migrated_connection();
+        import_export(&mut conn, export.path()).unwrap();
+
+        let stats = stats(&conn).unwrap();
+
+        assert_eq!(stats.message_count, 2);
+        assert_eq!(stats.conversation_count, 1);
+    }
 }

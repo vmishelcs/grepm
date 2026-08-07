@@ -7,12 +7,12 @@ edition = "2021"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 serde.workspace = true
 serde_json.workspace = true
-thiserror = "2.0.19"
+thiserror.workspace = true
 walkdir = "2"
 
 [dev-dependencies]
 proptest = "1.11.0"
-tempfile = "3"
+tempfile.workspace = true
 
 [lints]
 workspace = true

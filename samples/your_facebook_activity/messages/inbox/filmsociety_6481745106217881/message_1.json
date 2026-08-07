@@ -1,0 +1,49 @@
+{
+  "participants": [
+    {
+      "name": "Iris Zielinski"
+    },
+    {
+      "name": "Jonas Dubois"
+    },
+    {
+      "name": "Hugo Petrov"
+    },
+    {
+      "name": "Anneke Zielinski"
+    },
+    {
+      "name": "Bo Yilmaz"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Bo Yilmaz",
+      "timestamp_ms": 1699410219894,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Hugo Petrov",
+      "timestamp_ms": 1699409324654,
+      "content": "d\u00c3\u00a9j\u00c3\u00a0 vu honestly",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Bo Yilmaz",
+      "timestamp_ms": 1699404212461,
+      "content": "just landed, heading over now",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Film Society",
+  "is_still_participant": true,
+  "thread_path": "inbox/filmsociety_6481745106217881",
+  "magic_words": []
+}

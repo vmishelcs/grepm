@@ -1,9 +1,12 @@
 # Code Review — grepm
 
-**Date:** 2026-08-05
-**Scope:** `core/` (grepm_core), `src-tauri/`, project layout. The SvelteKit
-frontend and Tauri shell are still the starter scaffold and are reviewed only
-as such.
+**Date:** 2026-08-05; app-layer pass 2026-08-06
+**Scope:** `core/` (grepm_core), `src-tauri/`, project layout. At the first
+pass the SvelteKit frontend and Tauri shell were starter scaffold and were
+reviewed only as such. The 2026-08-06 pass reviewed them as real code — the
+library (`src-tauri/src/library.rs`), the command surface and error boundary,
+and every component, route and test under `src/` — plus the queries and
+progress plumbing added to `core` for them.
 
 **Acknowledged up front (per the author):** reactions are not persisted yet,
 and re-imports / further imports into the same database are known-broken.
@@ -11,9 +14,9 @@ Those areas are still covered below, because the review verified *specific
 mechanisms* of the breakage that are worth having on record — but they are
 marked as acknowledged.
 
-Findings marked ✅ **Addressed** carry a resolution block describing what
-actually changed, including where the fix differs from what was recommended
-and what was deliberately left undone.
+Every finding below is **open**. Resolved findings, with the resolution
+blocks describing what changed, have moved to `CODE_REVIEW-addressed.md`;
+their IDs are not reused.
 
 ---
 
@@ -31,6 +34,23 @@ reading it. Against the tree as reviewed:
 Temporary probe tests (written, run, then deleted) exercised the re-import
 failure modes against the real pipeline and against raw SQLite (bundled
 version **3.53.2**). Probe results are cited inline as evidence.
+
+**2026-08-06 pass**, against `ui-dev` at 4cdf311:
+
+| Check | Result |
+|---|---|
+| `cargo test --workspace` | **191 passed** (25 shell + 137 core unit + 12 ingestion + 17 search), 0 failed |
+| `cargo clippy --workspace --all-targets` | clean, 0 warnings |
+| `cargo fmt --all --check` + comment width | clean |
+| `npm run check` (svelte-check) | 0 errors, 0 warnings |
+| `npx eslint .` | clean |
+| `npm run test` (vitest, real Chromium) | **38 passed**, 0 failed |
+| `npm run verify` | **failed** before its test stage — I4, fixed 2026-08-06 |
+
+A temporary probe (written, run, deleted) timed the app-facing read queries
+against a seeded 500,000-message database; its numbers are cited in A17. The
+claim about which thread runs a command was checked against the vendored
+Tauri sources rather than by running a window, and is labeled accordingly.
 
 ---
 
@@ -53,37 +73,57 @@ newer export over an old database, inflates `conversations.message_count`
 Everything else is doc drift, API hardening, and performance headroom for
 large exports.
 
+**2026-08-06.** The app layer this review was waiting on has landed, and it
+is built the way §9's wiring notes asked: no SQL above the boundary, a
+structured serializable error type, the import off the main thread with
+progress events, and the snippet-escaping rule (A8) written into the front
+end's conventions before any snippet is rendered. The re-import corruption
+above is also now *contained* — the library gives every import a fresh
+database file, so no UI path can reach C1/C2 — though the engine still does
+not enforce that discipline itself. The new findings: a main-thread hazard
+that can freeze the window (A17), disabled-CSP hardening (A18), a temp-file
+leak on crash (A19), and smaller UI, copy, CI and tooling items (A20–A22,
+plus T5 and I4, both fixed 2026-08-06), plus dated status notes inside
+C1/C2, A8, D2 and D3.
+
 **Finding index:**
 
 | ID | Severity | Area | Title |
 |---|---|---|---|
 | C1 | High (acknowledged) | ingest/db | `message_count` inflates on every re-import |
 | C2 | High (acknowledged) | ingest/fts | A second import corrupts the FTS index |
-| C3 | ~~Medium~~ **Addressed** | db | `NULL` title/thread_path defeats the conversation upsert |
 | C4 | Medium (acknowledged) | ingest | Reactions parsed but dropped; note on the future dedup story |
 | C5 | Medium | ingest | Import is all-or-nothing per run, but partial per conversation |
-| A1 | ~~Medium~~ **Addressed** | search | No deterministic tiebreaker in `ORDER BY` → unstable pagination |
-| A2 | ~~Medium~~ **Addressed** | db API | Participant find-or-create and linking had to be called in lockstep |
-| A3 | ~~Low~~ **Addressed** | db | `INSERT OR IGNORE` swallows more than dedup conflicts |
-| A4 | ~~Low~~ **Addressed** | db | Negative `user_version` panics `migrate` |
-| A5 | ~~Low~~ **Addressed** | scan | `count` and `scan` disagree about symlinked conversation dirs |
-| A6 | ~~Low~~ **Addressed** | search | Snippet delimiters `[`/`]` collide with literal brackets |
-| A7 | Low | search | Participant filter is case-sensitive; empty query silently returns 0 |
 | A8 | Medium (when the UI lands) | ui/security | Rendering a snippet as HTML is an injection vector |
-| A9 | ~~High~~ **Addressed** | db | A failed migration left the connection inside an open transaction |
-| A10 | ~~Medium~~ **Addressed** | api | `Box<dyn Error>`, lost file context, leaked `rusqlite::Result` |
-| A11 | ~~Medium~~ **Addressed** | scan | `find_messages_root` swallowed I/O errors and walked unbounded |
-| A12 | ~~Low~~ **Addressed** | scan | `unwrap()` in the production sort path |
-| A13 | ~~Low~~ **Addressed** | search | `Page` accepted a negative limit, disabling `LIMIT` |
-| A14 | ~~Low~~ **Addressed** | search | Count and page queries were not one snapshot |
-| A15 | ~~Low~~ **Addressed** | db | Migration runner accepted a newer-versioned database |
-| A16 | ~~Low~~ **Addressed** | api | Duplicate public paths into `db` |
-| D1 | ~~Medium~~ **Addressed** | docs | `KNOWN_ISSUES.md` #2 described a fix that was not the one implemented |
+| A7 | Low | search | Participant filter is case-sensitive; empty query silently returns 0 |
 | D2 | Low | docs | README drift: trait signature, test count, "(re)builds" wording |
 | D3 | Low | code | `db/models.rs` is currently dead code |
+| K10 | Low (accepted) | ingest | `repair_mojibake` assumes exports never contain correct non-ASCII text |
 | P1–P4 | — | perf | Statement caching, participant lookup caching, count-query duplication, parse-inside-transaction |
-| T1–T4 | — | tests | Missing re-import assertions, ~~shared helpers~~ (T3), ~~property tests~~ (T4) |
-| I1–I3 | — | infra | ~~No Cargo workspace~~, ~~no CI~~, ~~fmt drift~~ (all done) |
+| T1–T2 | — | tests | Missing re-import assertions, import-failure recovery |
+| A17 | Medium | tauri | Sync commands run on the webview's main thread |
+| A18 | Medium | tauri/security | CSP disabled; unused opener plugin widens the bridge |
+| A19 | Low | library | A crashed import leaks its temp database forever |
+| A20 | Low | ui/errors | A newer build's index is reported as "damaged" |
+| A21 | Low | ui | The windowed list measures once; load order saves it |
+| A22 | Low | ui | Small front-end notes |
+
+Twenty-nine further findings are resolved — see `CODE_REVIEW-addressed.md`.
+
+**Provenance of the `K` findings.** `core/KNOWN_ISSUES.md` was folded into
+these two documents and removed. Its entries keep their original numbers under
+a `K` prefix, so an older citation of "KNOWN_ISSUES #3" resolves to K3. Three
+of them were already covered here and were not duplicated:
+
+| Was | Now |
+|---|---|
+| #1, #4, #5, #7 | K1, K4, K5, K7 — resolved, in `CODE_REVIEW-addressed.md` |
+| #3 | K3 (the trade-off) — resolved; A2 covers the API shape that enforces it |
+| #2 | retired when the entry was deleted (D1). The number is not reused |
+| #6 — reactions dropped | **C4**, which also settles the dedup and actor-resolution questions #6 left open |
+| #8 — migration rollback | **A9**, resolved 2026-07-24. The KNOWN_ISSUES entry had gone stale and still described the pre-fix behaviour |
+| #9 — re-import | **C1 + C2**, which answer what #9 left open: FTS5 does not reject the repeated rowid, and the index *is* corrupt today — verified |
+| #10 — mojibake residual risk | K10 below, open and accepted |
 
 ---
 
@@ -193,66 +233,14 @@ repeated INSERTs.
 `import_export`'s doc comment already claims it "(re)builds" the index, so
 this fix makes the comment true for free (see D2).
 
-### C3 — `NULL` title/thread_path defeats the conversation upsert — **Medium** ✅ **Addressed**
-
-> **Resolution (2026-08-05).** Neither recommended option; the author's call
-> was to assume the fields are never null and make that assumption enforced
-> rather than hoped for, at both layers:
->
-> - `RawConversationFile.title` and `.thread_path` are now `String`, not
->   `Option<String>`. A file missing either is refused by serde with an
->   `Error::Parse` naming the file — the degenerate input can no longer reach
->   the storage layer at all, which is the gap this finding describes.
-> - `conversations.title` and `.thread_path` are `NOT NULL`, so the upsert's
->   conflict target fires for every row by construction. Since nothing has
->   shipped, this edits the initial migration rather than adding a rebuild
->   step. `models::Conversation` follows suit (`String`, not `Option`).
->
-> KNOWN_ISSUES #5 corrected — it claimed two files must agree on the fields
-> "including both being present or both absent", and as this finding showed,
-> both-absent never merged.
->
-> Tests: `parse_conversation_file_rejects_a_file_without_the_conversation_key`
-> (each field missing in turn, asserting the error names the file),
-> `conversations_reject_a_null_title_or_thread_path` (the constraint itself),
-> and `load_conversation_merges_every_file_into_one_conversation_row` (the
-> positive case the finding is really about).
->
-> Trade-off worth naming: a real export with one conversation missing a title
-> now fails the whole import instead of silently splitting that thread. The
-> evidence says real exports always populate both fields; if one ever
-> doesn't, the fallback-to-folder-name option below is the way out.
-
-`conversations` is keyed by `UNIQUE (title, thread_path)` and
-`upsert_conversation` conflicts on that pair. In SQLite, `NULL`s are distinct
-in a unique index, so `ON CONFLICT` **never fires** when either field is
-`NULL` — every file inserts a brand-new conversation row, and because the
-message dedup index is scoped by `conversation_id`, all of that
-conversation's messages are duplicated along with it.
-
-**[verified]** Two `message_N.json` files in the same conversation folder,
-both lacking `title`/`thread_path` (legal per `RawConversationFile`, both
-fields were `Option`), produce **two** `conversations` rows on one import.
-Importing such a conversation twice yields two conversation rows and two
-copies of its single message.
-
-`KNOWN_ISSUES.md` #5 got this wrong: it said two files must agree on the
-fields "including both being present or both absent" to merge. Both-absent
-never merged. Existing test coverage proved the parser accepts such files, so
-the pipeline admitted inputs the storage layer silently split.
-
-**Recommendation.** Pick one:
-
-- Make the key total: since `scan` already hands `load_conversation` the
-  conversation folder (`ConversationDir::folder`), fall back to the folder
-  name when `thread_path` is `NULL` (and `''` for `title`), storing the
-  fallback rather than `NULL`. Real exports always populate both fields, so
-  this only changes behavior for the degenerate case.
-- Or mirror the messages fix: a
-  `CREATE UNIQUE INDEX ... ON conversations (COALESCE(title,''), COALESCE(thread_path,''))`
-  with a matching expression conflict target.
-
-Either way, correct KNOWN_ISSUES #5.
+**Status 2026-08-06.** C1 and C2 both stay open, but the app layer now
+contains the blast radius by construction: the library gives every import a
+fresh database file and offers no path that imports into an existing one
+(`src-tauri/src/library.rs`; the root `CLAUDE.md` cites C1/C2 as a reason
+for that design). The corruption is no longer reachable from the UI.
+Nothing in `grepm_core` enforces the one-import-per-database discipline,
+though — the moment a "refresh this import" feature lands, it lands exactly
+here, so the engine-level fixes and the T1 test are still worth their cost.
 
 ### C4 — Reactions parsed but dropped — **Medium** (acknowledged)
 
@@ -299,196 +287,34 @@ name the offending file. If fail-fast stays, at least run `populate_fts` on
 the error path so already-committed conversations remain searchable; with the
 C2 `rebuild` fix that becomes safe to do unconditionally.
 
+### K10 — `repair_mojibake` assumes exports never contain legitimately-correct non-ASCII text — **Low (accepted)**
+
+*Folded in from `core/KNOWN_ISSUES.md` #10, which recorded this as an accepted
+risk rather than a bug to fix.*
+
+`repair_mojibake` (`core/src/ingest/parse.rs`) is applied unconditionally to
+every non-ASCII string, on the stated assumption that real Messenger exports
+are always mojibake-corrupted and never already-correct UTF-8. Its fallback —
+bail out on an out-of-Latin-1 `char`, or on bytes that aren't valid UTF-8 once
+reinterpreted — catches most accidental misfires. But a string that is already
+correct, entirely within the Latin-1 range, and happens to reinterpret as
+valid UTF-8 is silently mis-repaired. Low practical risk given the source
+data; worth remembering if this logic is ever reused against a different or
+cleaner data source.
+
+Half of the concern is now a checked invariant rather than an argument (T4).
+`repair_mojibake_undoes_the_corruption_for_any_text` asserts that corrupting
+*any* string and repairing it returns the original, so the "it always undoes
+the bug" half holds for every input, not just the hand-picked examples. The
+residual risk above is unchanged, and
+`repair_mojibake_peels_exactly_one_layer_of_corruption` pins a concrete
+instance of it: `"Ã©"` is already-correct Latin-1 text that this function will
+happily "repair" into `"é"`, because nothing distinguishes it from a corrupted
+`"é"`. That also means the function is deliberately not idempotent.
+
 ---
 
 ## 4. API and robustness findings
-
-### A1 — No deterministic tiebreaker in search ordering — **Medium** ✅ **Addressed**
-
-> **Resolution (2026-08-05).** Fixed as recommended: every `ORDER BY` arm now
-> ends in `m.id` (`DESC` for `Relevance`/`Latest`, `ASC` for `Oldest`), with a
-> comment recording why the ordering has to be total. Pinned by three new unit
-> tests in `core/src/search/fts.rs` —
-> `search_breaks_timestamp_ties_by_message_id`,
-> `search_breaks_relevance_ties_by_message_id`, and
-> `paging_through_tied_results_visits_every_hit_exactly_once` (six
-> same-millisecond, same-bm25 hits paged 2 at a time must appear exactly once
-> each). The first two were confirmed to fail against the pre-fix `ORDER BY`.
-
-`FtsIndex::search` orders by exactly one expression: `bm25(...)`,
-`timestamp_ms DESC`, or `timestamp_ms ASC`. None has a tiebreaker, and ties
-are not exotic here:
-
-- Same-millisecond messages are a first-class scenario in this codebase — the
-  dedup index went through two revisions specifically to keep
-  same-`timestamp_ms` messages apart.
-- bm25 ties are routine for short chat messages; the probe observed the
-  degenerate case where every hit scored an identical `-1e-6`.
-
-Because each page is a separate query — and a separate transaction, since
-pagination calls `search` once per page — SQLite is free to order tied rows
-differently across pages, so a row can appear on two pages or on none.
-
-**Recommendation:** append `, m.id DESC` (or `ASC` for `Oldest`) to every
-arm. One-line change, makes pagination deterministic.
-
-### A2 — Participant find-or-create and linking must be called in lockstep — **Medium** ✅ **Addressed**
-
-> **Resolution (2026-08-05).** Folded as recommended:
-> `insert_participant` + `link_conversation_participant` are replaced by a
-> single `find_or_create_participant(conn, conversation_id, name) -> Result<i64>`
-> that finds, or inserts *and* links. `link_conversation_participant` is gone
-> — it had no other callers — so the trap is unrepresentable rather than
-> merely documented. Both duplicated call sites in `loader.rs` collapsed to
-> one call each (the sender path is now a `map(...).transpose()?` over
-> `sender_name`). The link uses a plain `INSERT` rather than
-> `INSERT OR IGNORE`: the id is freshly minted inside the function, so a
-> conflict is impossible and shouldn't be silently swallowed if one somehow
-> occurs (cf. A3). Pinned by two new unit tests in `core/src/ingest/loader.rs`
-> — `find_or_create_participant_links_the_new_participant_to_the_conversation`
-> and `find_or_create_participant_returns_the_existing_id_when_called_again`
-> — both confirmed to fail if the link is removed from the function, along
-> with seven existing loader tests. KNOWN_ISSUES #3 updated to match.
->
-> Not done, deliberately: the per-conversation `HashMap` cache from P2. It's
-> a performance change, and the find-or-create call is now the single place
-> to add it when that's measured.
-
-`insert_participant` found an existing participant *only via the
-`conversation_participants` join*. If a caller inserted but forgot to
-immediately call `link_conversation_participant`, the next lookup for the
-same name missed and inserted another row — the exact failure KNOWN_ISSUES #3
-describes for message senders. Nothing in the API enforced the pairing;
-`loader.rs` just repeated the two-call sequence correctly in two places.
-
-There is also no database backstop: `participants` has no unique constraint
-that could catch a violation of this invariant — deliberately, since the same
-name may repeat across conversations, but that means the invariant lived
-entirely in caller discipline.
-
-**Recommendation:** fold the link into the function — it already takes
-`conversation_id`. A single
-`find_or_create_participant(conn, conversation_id, name) -> Result<i64>`
-that finds, or inserts *and links*, removes the trap and both duplicated call
-sites. This is the type-driven "make invalid states unrepresentable" move at
-API scale.
-
-### A3 — `INSERT OR IGNORE` swallows more than dedup conflicts — **Low** ✅ **Addressed**
-
-> **Resolution (2026-08-05).** Swapped for the recommended
-> `ON CONFLICT (...) DO NOTHING`, spelling out the dedup index's columns and
-> expressions (`COALESCE(sender_id, -1)`, `COALESCE(content, '')`) so the
-> ignore is scoped to exactly that index. `changes() == 0` still means
-> "duplicate", and now means only that.
->
-> The conflict target is self-verifying: SQLite rejects a statement whose
-> target doesn't match an index with `ON CONFLICT clause does not match any
-> PRIMARY KEY or UNIQUE constraint` — confirmed by deliberately dropping one
-> column from the target, which failed every dedup test. So the existing
-> dedup suite passing proves it binds to `idx_messages_dedup`.
->
-> Two new unit tests in `core/src/ingest/loader.rs`:
-> `insert_message_reports_a_duplicate_as_none_rather_than_an_error` (the path
-> that must keep working) and
-> `insert_message_errors_on_a_constraint_violation_that_is_not_a_duplicate`,
-> which adds a throwaway unique index to stand in for the future constraint
-> this finding is about, then shows the violation now errors — confirmed to
-> fail against `INSERT OR IGNORE`, where the row was silently dropped.
-
-`insert_message` uses `INSERT OR IGNORE` and interprets `changes() == 0` as
-"duplicate". `OR IGNORE` also silently drops rows that fail *any* non-FK
-constraint (`NOT NULL`, `CHECK`), so a future schema constraint could turn a
-coding bug into silently missing messages instead of an error — a swallowed
-row is indistinguishable from a duplicate here.
-`ON CONFLICT (conversation_id, ...) DO NOTHING` targeting `idx_messages_dedup`
-scopes the ignore to exactly the dedup index and errors on everything else.
-Cheap insurance.
-
-### A4 — Negative `user_version` panics `migrate` — **Low** ✅ **Addressed**
-
-> **Resolution (2026-08-05).** `migrate` now refuses `current_version < 0`
-> before the migration loop, so a tampered file produces an `Err`, not a
-> panic. Confirmed the panic was real: without the guard the new test aborts
-> with `index out of bounds: the len is 1 but the index is
-> 18446744073709551615` — exactly the `as usize` wrap described here.
->
-> Took the "dedicated variant" option rather than reusing
-> `UnsupportedSchemaVersion`: that variant's message says the database is
-> *newer* than this build and suggests updating the app, which would be
-> actively misleading here. The new `Error::InvalidSchemaVersion { found }`
-> says the file is corrupt or isn't ours, and its doc comment records why the
-> two are separate. Pinned by
-> `migrate_rejects_a_negative_user_version_instead_of_panicking`.
-
-`migrate` indexes `MIGRATIONS[version as usize]` over
-`current_version..LATEST_VERSION`. A hand-tampered database with a negative
-`user_version` — the pragma is signed — makes `version as usize` wrap and the
-indexing panic. Guard `current_version < 0` with the same
-`UnsupportedSchemaVersion`-style refusal (or a dedicated variant) so a
-corrupt file produces an `Err`, not a panic, consistent with the crate's own
-no-panic policy.
-
-### A5 — `count` and `scan` disagree about symlinks — **Low** ✅ **Addressed**
-
-> **Resolution (2026-08-05).** Aligned on *not* following symlinks, which is
-> what `scan_inbox` and `find_messages_root` already did. `count_inbox` now
-> filters on `DirEntry::file_type()` (reports the link itself) instead of
-> `Path::is_dir()` (resolves it), and `message_files_in` likewise switched
-> from `Path::is_file()` to `DirEntry::file_type()` so a symlinked
-> `message_N.json` is skipped too — the same policy applied consistently
-> rather than only at the conversation-folder level. The rationale is recorded
-> on `scan_inbox`: an export is a self-contained tree, so a link inside it
-> points somewhere the user didn't ask to import, and following links would
-> let a cycle turn the walk infinite. The export root itself is exempt — the
-> caller named it explicitly, so `validate_root` still resolves it. Pinned by
-> three new unit tests in `core/src/ingest/scan.rs` (all `#[cfg(unix)]`):
-> `count_and_scan_both_skip_a_symlinked_conversation_folder` (the finding's
-> exact scenario, asserting the two passes agree),
-> `scan_skips_symlinked_message_files`, and
-> `find_messages_root_does_not_follow_a_symlink_to_the_messages_directory`.
-> The first two were confirmed to fail against the pre-fix checks.
-
-`count_inbox` used `entry.path().is_dir()`, which follows symlinks;
-`scan_inbox` uses `entry.file_type().is_dir()` on a non-following `WalkDir`,
-which doesn't. A symlinked conversation folder is counted by the cheap pass
-but skipped by the real one, so a progress UI built on `count` would never
-reach 100%. Align the two checks, and decide explicitly whether symlinked
-conversation dirs are in or out.
-
-### A6 — Snippet delimiters collide with message text — **Low** ✅ **Addressed**
-
-> **Resolution (2026-08-05).** Switched to the suggested interlinear
-> annotation pair, exposed as `search::MATCH_START` (`U+FFF9`) and
-> `search::MATCH_END` (`U+FFFB`). They live in `search/mod.rs`, not
-> `search/fts.rs`: how a match is marked is part of what `SearchIndex`
-> promises about `SearchHit.snippet`, not an FTS5 detail, and a consumer has
-> to name them to translate them — which it must do without reaching past the
-> trait.
->
-> `SearchHit::snippet` now documents the contract, including that the
-> surrounding text is sender-controlled and needs escaping (see A8).
->
-> Pinned by `match_markers_are_distinguishable_from_punctuation_in_the_message`,
-> which searches "coffee" in `I read [1] and the coffee was fine` and asserts
-> the full snippet — the message's own brackets come through untouched while
-> only the match is wrapped. Under the old markers that snippet was
-> `I read [1] and the [coffee] was fine`, with "1" indistinguishable from a
-> highlight.
->
-> Left alone deliberately: the `'...'` ellipsis argument has the same in-band
-> ambiguity (a message can trail off with "..."), but a consumer has no reason
-> to distinguish "clipped here" from a typed ellipsis, so it isn't worth a
-> sentinel. Also not done: stripping `U+FFF9`/`U+FFFB` from `content` at
-> ingest, which is what would make collisions impossible rather than merely
-> implausible. That changes stored data for a case that doesn't arise in
-> exported chat text.
-
-`snippet(messages_fts, 0, '[', ']', '...', 8)` marks matches with characters
-that legitimately occur in chat text, so a UI can't reliably distinguish a
-highlight from a literal bracket, and can't safely transform the markers into
-markup. Use improbable sentinels — the Unicode interlinear annotation pair
-`\u{FFF9}`/`\u{FFFB}`, or a private-use pair — and translate at the UI
-boundary.
 
 ### A7 — Small search-behavior notes — **Low**
 
@@ -553,233 +379,148 @@ Worth deciding at the same time: whether `conversation_title` and
 `sender_name` get the same treatment. Both are also export-derived,
 sender-influenced strings, and both will be rendered next to the snippet.
 
-### A9 — A failed migration leaves the connection inside an open transaction — **High** ✅ **Addressed**
+**Status 2026-08-06.** Still nothing renders snippets, so still open — but
+the groundwork is ahead of need: the rule is codified as `src/CLAUDE.md`
+rule 1, the shared fixtures carry a live `<img onerror>` payload in a title,
+a sender name *and* a snippet, and the sidebar already renders
+export-derived titles and participant names as text nodes with a browser
+test pinning that (`renders a title containing markup as text`). The answer
+to the last paragraph's question turned out to be yes.
 
-> **Resolution (2026-07-24).** `schema::migrate` now takes `&mut Connection`
-> and wraps each migration step in `Connection::transaction()` instead of
-> manual `execute_batch("BEGIN;") … execute_batch("COMMIT;")`. If any
-> statement fails, the `Transaction` guard is dropped uncommitted and
-> rusqlite issues the `ROLLBACK` automatically, so the connection is never
-> stranded. The `user_version` bump happens inside the same transaction, so a
-> failed migration also can't leave the version pointing at schema that never
-> applied.
->
-> Regression test:
-> `migrate_rolls_back_a_failed_migration_and_leaves_the_connection_usable`.
-> It forces a *genuine* mid-migration failure — pre-creating a `messages`
-> table containing duplicate rows so `CREATE UNIQUE INDEX idx_messages_dedup`
-> fails, since `IF NOT EXISTS` only guards against the index existing, not the
-> data violating it — then asserts the migration errors, `user_version` stays
-> 0, and a fresh `conn.transaction()` succeeds afterward.
+### A17 — Sync commands run on the webview's main thread — **Medium**
 
-`schema::migrate` bracketed each migration with
-`execute_batch("BEGIN;") … execute_batch("COMMIT;")`. If any statement in
-between failed, the function returned early with the error and **never rolled
-back**, leaving the connection with a dangling transaction. Every later
-attempt to start a transaction on that connection then failed.
+Every command except `start_import` is a plain `fn`, and Tauri executes
+those inline on the main thread: wry delivers the IPC request on the UI
+thread, and a non-`async` command runs to completion inside that handler
+(`ExecutionContext::Blocking` in `tauri-macros`' `command/wrapper.rs`; the
+Tauri docs state it directly — "Commands without the *async* keyword are
+executed on the main thread"). Verified against the vendored sources, not by
+running a window. Two consequences, one latent and one live:
 
-**[verified]**, by pre-seeding a `messages` table containing duplicates so
-the `CREATE UNIQUE INDEX` genuinely fails:
+- **The freeze.** `start_import` holds the `library` mutex for its whole
+  run — deliberately, and the comment argues nothing else needs the lock
+  meanwhile because the launch screen is replaced by the progress view. That
+  is true of this window's own navigation and of nothing else. A webview
+  reload during an import (trivial in a dev build, platform-dependent in
+  release) lands back on the launch screen, whose `list_imports` then blocks
+  **the event loop** on a mutex that stays held for minutes: no repaint, no
+  close, no progress events — the window is dead until the import finishes.
+  The same holds for `open_import` and `delete_import` the moment any future
+  UI can reach them while an import runs.
+- **The jank.** `active_import` and `list_conversations` run full-scan
+  aggregates over the open database. **[verified]** against a seeded
+  database of 2,000 conversations / 500,000 messages / four participants
+  each: `db::queries::conversations` takes **~65 ms** in release and
+  **~380 ms** in debug; `stats` 6–8 ms. That work runs on the thread that
+  paints the window, on every `/opened` load, and it grows linearly with the
+  export — plus the IPC serialization of every summary on top.
 
-```
-migrate         => Err(… UNIQUE constraint failed: index 'idx_messages_dedup')
-subsequent BEGIN => Err(… "cannot start a transaction within a transaction")
-```
+**Recommendation.** Mark the read commands `#[tauri::command(async)]` — on a
+sync `fn` that alone moves execution onto the async runtime — and make the
+three `library`-lock takers genuinely async with the lock-holding section in
+`spawn_blocking`, the pattern `start_import` already uses. A command that
+arrives mid-import then *pends*, as a promise the front end already awaits,
+instead of freezing the event loop. Worth deciding before the search UI
+lands: search will put a per-keystroke query behind a command, which is the
+worst place to discover this.
 
-The single migration was all `IF NOT EXISTS`, so failures were unlikely in
-practice — but the moment a second migration lands (an `ALTER TABLE`, a data
-backfill), this becomes a real failure mode: the app "recovers" from a
-migration error into a connection that can no longer write transactionally.
+### A18 — CSP is disabled, and an unused plugin widens the bridge — **Medium (hardening)**
 
-### A10 — `Box<dyn Error>` in a library, and lost file context — **Medium** ✅ **Addressed**
+`tauri.conf.json` still carries the scaffold's `"security": { "csp": null }`.
+A8 explains why this app's threat model is unusual — the corpus is text
+strangers wrote, rendered in a webview that reaches the IPC bridge. The
+escaping rule is the primary defense, but it is one `{@html}` slip away from
+mattering, and with a CSP configured Tauri injects nonces/hashes for its
+bundled assets so an injected inline script stops short of executing. With
+`null` there is no second line. The app is offline by design — nothing
+legitimate loads from a remote origin — so a restrictive policy costs
+nothing; start from Tauri's documented default (`default-src 'self'` plus
+the `ipc:`/`http://ipc.localhost` connect-src the bridge needs) and verify
+the app still runs.
 
-> **Resolution (2026-07-24).** `core/src/error.rs` defines a crate-level
-> `thiserror` enum, re-exported from `lib.rs` with a `pub type Result<T>`
-> alias, carrying `Io`, `Db`, `ReadFile { path, source }` and
-> `Parse { path, source }` (later joined by `UnsupportedSchemaVersion` and
-> `InvalidSchemaVersion`). Every public function in the crate returns it —
-> `db`, `ingest`, and `search`, including the `SearchIndex` trait itself. The
-> only remaining `rusqlite::Result`s are inside row-mapper closures, where
-> rusqlite's API requires them.
->
-> This resolves each sub-issue: `Box<dyn Error>` is gone and the enum is
-> `Send + Sync`, pinned by a compile-time assertion test, so errors can cross
-> thread and async boundaries in the Tauri layer; JSON errors no longer
-> masquerade as `io::Error`; the offending file's path is carried in the
-> variant and rendered in the message (`failed to parse /…/message_1.json:
-> expected value at line 1 column 3`); and `SearchIndex::search` no longer
-> hard-codes the FTS5 backend's error type.
+Separately, `tauri_plugin_opener` is initialized and granted
+`opener:default`, and nothing in `src/` imports `@tauri-apps/plugin-opener`
+— scaffold residue. An injected script's reach is exactly the set of
+commands exposed on the bridge, and today that includes "open a URL or path
+with the system handler" in exchange for no feature. Drop the plugin
+(`Cargo.toml`, `lib.rs`, `capabilities/default.json`, `package.json`) until
+something needs it, then re-add it scoped to what that feature opens.
 
-Three issues compounded here:
+### A19 — A crashed import leaks its temp database forever — **Low**
 
-- `import_export` and `load_conversation` returned
-  `Result<_, Box<dyn Error>>`. For a library crate this erases all error
-  structure — callers cannot distinguish "one file was malformed" from "the
-  database is locked". It was also not `Box<dyn Error + Send + Sync>`, so
-  those errors couldn't cross a thread or async boundary, which is exactly
-  where they're headed once the Tauri layer runs imports off the main thread.
-- `parse_conversation_file` returned `io::Result`, silently converting
-  `serde_json::Error` into `io::Error` — a JSON syntax error masquerading as
-  an I/O error.
-- Most importantly for users: **the error carried no file path**. A malformed
-  file in a 900-conversation export failed the whole import with
-  `expected value at line 1 column 3` and no indication of which file.
+The failure *path* cleans up: `import_into_library` deletes
+`.tmp-<id>.sqlite3` when the ingest returns an error. A failure that never
+returns — a crash, a kill, a power cut, minutes into a multi-GB import —
+leaves the temp file in the imports folder with nothing pointing at it and
+nothing that will ever delete it: `allocate_id` steps around it, no listing
+shows it, and the module doc's "Nothing is left behind on failure" quietly
+becomes untrue. Two smaller residue paths sit in the same function: a failed
+`fs::rename` into place returns without the cleanup the ingest-failure arm
+has, and a failed `write_index` *after* the rename orphans a fully-built,
+real-named database that no index entry will ever list.
 
-The `SearchIndex` trait also leaked `rusqlite::Result` — a trait whose
-purpose is to abstract the FTS5 backend shouldn't hard-code the backend's
-error type in its signature.
+**Recommendation.** Sweep `.tmp-*.sqlite3` from the imports folder at
+launch, before the first command can start an import — at that moment any
+temp file is stale by definition. Extend the cleanup arm over the rename
+failure, and consider removing the renamed file when `write_index` fails, so
+the all-or-nothing claim is true on every path. Worth a line in the module
+doc while there: all of this assumes one process. Two running instances
+share the folder with no cross-process lock; the rename keeps each index
+write atomic, but two writers can silently drop each other's entries.
 
-### A11 — `find_messages_root` swallows I/O errors and walks unbounded — **Medium** ✅ **Addressed**
+### A20 — A newer build's index is reported as "damaged" — **Low**
 
-> **Resolution (2026-07-24).** All three sub-issues addressed:
->
-> - *Swallowed errors*: `.filter_map(|entry| entry.ok())` replaced with an
->   explicit loop. An unreadable directory doesn't abort the search — the
->   inbox may still be findable elsewhere, deliberately more forgiving than
->   fail-fast — but the first walk error is remembered, and if the search
->   comes up empty that error is returned instead of the misleading "could not
->   find a messages/inbox directory".
-> - *Unbounded walk*: discovery is capped at `MESSAGES_ROOT_MAX_DEPTH = 4`.
->   Real exports place `messages/inbox` at depth 2, or 3 under a dated export
->   folder; the bound keeps the walk out of the export's media trees. The
->   trade-off is documented at the constant.
-> - *Double walk*: `count` and `scan` are now thin wrappers over `count_inbox`
->   / `scan_inbox`, so a caller can run `find_messages_root` once and reuse
->   the result for both passes.
->
-> Tests: `find_messages_root_does_not_search_below_the_depth_bound`,
-> `find_messages_root_reports_a_walk_error_instead_of_a_misleading_not_found`,
-> `find_messages_root_keeps_searching_past_an_unreadable_directory`, and
-> `count_inbox_and_scan_inbox_work_from_a_single_discovery_walk`.
+`read_index` folds two different situations into `CorruptIndex`: JSON that
+does not parse, and a well-formed index whose `version` is newer than the
+build understands. The schema layer keeps those apart
+(`UnsupportedSchemaVersion` vs `InvalidSchemaVersion`) precisely so the UI
+can say "update grepm" instead of "your data is damaged" — but for the
+index, `$lib/errors` renders both as "The library index is damaged", which
+is the wrong message with the wrong emotional weight for a user who merely
+launched an older build after a newer one. A `NewerIndex { found,
+supported }` variant, mirrored in `types.ts` with its own copy in
+`errors.ts`, aligns the two version checks.
 
-The WalkDir traversal used `.filter_map(Result::ok)`, so a permission error
-on the way to `messages/inbox` was silently dropped and the user saw the
-misleading "could not find a messages/inbox directory" instead of "permission
-denied". Two secondary issues: the walk was depth-unbounded over the whole
-export, which for a real Facebook export means traversing tens of thousands
-of media files; and `count()` and `scan()` each called `find_messages_root`,
-so the count-then-scan flow performed the discovery walk twice.
+### A21 — The windowed list measures once, and only load order saves it — **Low**
 
-### A12 — `unwrap()` in the production sort path — **Low** ✅ **Addressed**
+`ConversationList`'s `trackSize` attachment measures the row pitch from the
+first `li.row` in the DOM. If no row exists yet it returns without setting
+anything, and nothing retries: the `ResizeObserver` watches the `ul`, whose
+size never changes when rows are added inside its fixed flex height. Mounted
+empty, the list stays unmeasured forever — `rowHeight` 0, spacers 0px, and
+rendering silently capped at the 40 `UNMEASURED_ROWS` with the rest of the
+list unreachable.
 
-> **Resolution (2026-07-24).** Took the `(number, path)` option — the one that
-> makes the invariant hold *by construction* rather than masking a
-> hypothetical `None` with a sentinel. `message_files_in` parses each file's
-> number at the moment the file is admitted and returns `Vec<(u64, PathBuf)>`;
-> `scan` sorts with `sort_unstable_by_key(|&(number, _)| number)`, for which
-> no failure path exists, and strips the numbers when building
-> `ConversationDir::message_files`, so the public type is unchanged. Side
-> benefit: `message_number` used to run twice per file and now runs once.
+It works today because `/opened` gates the reader behind `{#if info}` and
+assigns `info` and `conversations` from one `Promise.all`, so the list never
+mounts before its rows exist. That invariant is held two files away from the
+code that depends on it, and the windowing suite cannot catch a regression —
+it drives the page, so it inherits the same load order. A small guard makes
+the component correct on its own: re-run the measurement when rows exist but
+`measured` is still false (an `$effect` keyed on the first non-empty
+`visible`), or measure from a prop-driven callback rather than only from the
+observer.
 
-`message_files.sort_by_key(|path| message_number(path).unwrap())` could not
-panic, because `message_files_in` only admitted paths for which
-`message_number(...).is_some()` — but that invariant lived in a different
-function, and a future edit to the filter would break this at runtime.
+### A22 — Small front-end notes — **Low**
 
-### A13 — `Page` accepts a negative limit — **Low** ✅ **Addressed**
-
-> **Resolution (2026-07-24).** Took the type-level option: `Page`'s fields are
-> `u32`, so a negative value from the frontend fails at the serde boundary
-> instead of reaching SQL, and the invalid state is unrepresentable for Rust
-> callers too — no runtime clamping logic to keep in sync. `u32` binds
-> cleanly to SQLite's `i64` parameters, so `FtsIndex::search` needed no
-> changes. Deliberately *not* capped at the high end: a huge-but-positive
-> limit is an explicit "give me everything", a policy question for the app
-> layer, unlike the silent negative → unlimited surprise. Pinned by
-> `page_deserialization_rejects_a_negative_limit`,
-> `page_deserialization_rejects_a_negative_offset`, and
-> `page_deserializes_from_valid_input`.
-
-`Page { limit: i64, offset: i64 }` is deserialized from the frontend and
-passed straight into `LIMIT ?6 OFFSET ?7`. In SQLite, `LIMIT -1` means
-*unlimited* — a buggy or malicious frontend value dumps the entire result set
-in one page.
-
-### A14 — Count and page queries are not a consistent snapshot — **Low** ✅ **Addressed**
-
-> **Resolution (2026-07-24).** `FtsIndex::search` wraps both reads in a single
-> transaction via `Connection::unchecked_transaction()` and commits after
-> collecting the hits. Under SQLite's deferred transaction semantics the
-> snapshot is established at the first read and held until commit, so a write
-> landing between the two queries can no longer make them disagree.
->
-> `unchecked_transaction` rather than `transaction()` because `FtsIndex` holds
-> `&Connection` and the `SearchIndex` trait takes `&self`; the borrow-checked
-> variant would have forced `&mut` through the whole trait for no benefit. The
-> "unchecked" caveat is safe here — the transaction is created, used for two
-> read-only queries, and committed within one function. Pinned by
-> `search_commits_its_read_transaction_and_leaves_the_connection_free`; true
-> snapshot-isolation interleaving isn't deterministically testable without
-> pausing `search` mid-function, so that part rests on SQLite's documented
-> semantics.
-
-`FtsIndex::search` ran the `count(*)` query and the paginated query as two
-independent reads. A write between them — an import running while the user
-searches — could make `count` disagree with the returned hits. Low impact for
-a desktop app, but a read transaction around the pair is nearly free.
-
-### A15 — Migration runner accepts a database from a newer app version — **Low** ✅ **Addressed**
-
-> **Resolution (2026-07-24).** `schema::migrate` checks
-> `current_version > LATEST_VERSION` before the migration loop and refuses
-> with `Error::UnsupportedSchemaVersion { found, supported }`. Its message
-> tells the user what happened — *"database schema version 2 is newer than
-> this build supports (1); it was probably created by a newer version of the
-> app"* — actionable for the downgraded-app case and a clear signal for a
-> foreign database file. Because `open` runs `migrate`, the check guards every
-> normal path to a connection. The structured fields let the future Tauri
-> layer distinguish this from other `Db` errors and offer a sensible UX.
-> Pinned by `migrate_rejects_a_database_from_a_newer_app_version`.
-
-`migrate` iterates `current_version..LATEST_VERSION`; when a database's
-`user_version` is *greater* than `LATEST_VERSION` — downgraded app, or a
-foreign database file — the range is empty and the code proceeds as if all is
-well against a schema it doesn't understand.
-
-### A16 — Duplicate public paths into `db` — **Low** ✅ **Addressed**
-
-> **Resolution (2026-07-24).** Went with plain public modules and no
-> re-exports — the option matching how most existing code already addressed
-> items (`db::schema::open` in every test helper and integration test).
-> `db/mod.rs` is now three `pub mod` declarations; the re-export block is
-> deleted, so every item has exactly one public path. The facade alternative
-> was rejected because `schema::configure`/`schema::migrate` are used directly
-> from test helpers in other modules, which would have forced the facade to
-> re-export nearly all of `schema` anyway.
-
-`db/mod.rs` re-exported `schema::populate_fts` and the query functions, but
-`schema` and `models` were also `pub` — so `db::populate_fts` and
-`db::schema::populate_fts` both worked, while `queries` alone was private.
-Tests and integration code already mixed the styles.
+- **Menu focus is dropped on close.** Opening the `...` menu moves focus
+  onto the menu item; Escape or an outside click closes it without restoring
+  focus, which lands back on `<body>` and costs a keyboard user their place.
+  Return focus to the triggering button on close. (Arrow-key navigation can
+  wait — the menu has one item.)
+- **One test stubs the bridge twice.** `page.svelte.test.ts`'s "reports an
+  import whose file has gone missing" calls `stubCommands` and then
+  immediately replaces the stub with its own `mockIPC`; the first call is
+  dead and reads as though both were needed.
+- **`shoot.mjs` answers a `search` command that doesn't exist.** Harmless
+  today, but the file's own comment promises entries are added *when* a
+  command is added, and a pre-registered stub will mask the "no fixture"
+  error precisely when the real search command lands with a different name
+  or shape.
 
 ---
 
 ## 5. Documentation drift
-
-### D1 — `KNOWN_ISSUES.md` #2 describes a fix that isn't the implemented one — **Medium** ✅ **Addressed**
-
-> **Resolution (2026-08-05).** Entry #2 deleted rather than corrected: it
-> documented an already-fixed issue, and the design it was describing badly is
-> stated accurately where it belongs — the NULL-content rationale lives on the
-> `messages.content` column, `insert_message`, and the
-> `duplicate_messages_with_null_content_are_rejected` test. A rewritten entry
-> would only have restated those, with the same drift risk that made it wrong
-> in the first place.
->
-> The number is retired, not reused: `README.md`, `core/src/search/fts.rs`,
-> and `core/tests/ingestion.rs` all cite entries by number, so renumbering
-> would have silently broken them. The file's intro now records that numbering
-> rule, so the gap doesn't read as an accident.
-
-KNOWN_ISSUES #2 stated: "`content` is now `TEXT NOT NULL DEFAULT ''` …
-`insert_message` stores a missing message body as `''` instead of `NULL`."
-The code does the opposite: `content TEXT` is nullable, `insert_message` binds
-`message.content.as_deref()` and stores `NULL`, `models::Message` documents
-"stored as `NULL`", and the dedup index handles the NULL case with
-`COALESCE(content, '')` — the same route taken for `sender_id`. The tests
-pin the NULL-based behavior, so the code is consistent with itself; only the
-document was wrong. Since this file functions as the project's decision
-record, a wrong "fixed" entry is worth correcting promptly.
 
 ### D2 — README drift — **Low**
 
@@ -788,7 +529,8 @@ record, a wrong "fixed" entry is worth correcting promptly.
   `Result` — a meaningful difference, since not leaking backend error types is
   one of the crate's stated design points (see A10).
 - The hard-coded test count will keep rotting; consider dropping it or
-  wording it loosely.
+  wording it loosely. (It has: the README still says 158, and the workspace
+  now runs 191 — the drift this bullet predicted.)
 - `import_export`'s doc comment says it "(re)builds the full-text search
   index"; it appends (see C2). If the C2 `rebuild` fix lands, the comment
   becomes true for free.
@@ -811,6 +553,15 @@ have no equivalent.
 Either wire them up with the first Tauri command, or mark the module with a
 short comment stating its intended consumer so it isn't mistaken for
 abandoned code.
+
+**Status 2026-08-06.** The first Tauri commands landed and did *not* use
+these types: the boundary grew its own instead (`ConversationSummary` and
+`Stats` in `queries.rs`, `ImportEntry` in the shell), and
+`src/lib/ipc/types.ts` explicitly declines to mirror `models.rs` "because
+none of it crosses the boundary yet". The module is now dead code with a
+working counter-example beside it, which strengthens the delete option:
+whatever the search UI ends up needing, the pattern so far is to define it
+where it is queried, with tests, not to reach for these.
 
 ---
 
@@ -873,66 +624,6 @@ Gaps, in priority order:
 - **T2 — Import-failure recovery** (pairs with C5): after a run that fails
   partway, assert what the database is left holding — committed conversations
   present, and once C2 lands, still searchable.
-- **T3 — Shared test helpers** ✅ **Addressed (2026-08-05):** `write_file`,
-  `migrated_connection`, and the `make_unreadable` guard were duplicated
-  across five-plus files, unit and integration. A `tests/common/mod.rs`
-  (integration) plus a `#[cfg(test)]` `test_util` module (unit) removes the
-  drift risk.
-
-  > **Resolution.** Both modules created as suggested. Collapsed: 5 copies
-  > of `write_file`, 4 of `migrated_connection`, 2 of `make_unreadable`, and
-  > `open_db` (which `search.rs` had open-coded inline twice instead of
-  > copying). Helpers used by a single file — `table_names`,
-  > `conversation_dir`, `fts.rs`'s raw-SQL seeders — stayed put; moving those
-  > would trade duplication for indirection.
-  >
-  > The two `make_unreadable` copies had *already* drifted: their doc comments
-  > no longer matched. Both call sites also carried an identical copy of the
-  > run-as-root escape hatch, so the shared version folds that in and returns
-  > `Option<impl Drop>` — `None` meaning "mode 000 didn't take, skip". A
-  > `let Some(_guard) = … else { return }` replaces the guard-then-recheck
-  > pair. Verified those tests don't now skip silently by making the
-  > else-branch panic: it isn't taken, so the permission-denied paths still
-  > run for real.
-  >
-  > The remaining duplication between `src/test_util.rs` and
-  > `tests/common/mod.rs` is structural and documented in both: `test_util` is
-  > `cfg(test)` inside the library, and each integration test is its own crate
-  > linking the published library, so there is nothing for it to import.
-- **T4 — Property test for `repair_mojibake`** ✅ **Addressed (2026-08-05):**
-  the function is a perfect proptest target. For any `s: String`, encoding `s`
-  as UTF-8 bytes and mapping each byte to its Latin-1 char must repair back to
-  exactly `s`. This turns KNOWN_ISSUES #10's "low practical risk" reasoning
-  into a checked invariant.
-
-  > **Resolution.** `proptest` added as a dev-dependency, with three
-  > properties in `core/src/ingest/parse.rs`:
-  >
-  > - `repair_mojibake_undoes_the_corruption_for_any_text` — the round-trip
-  >   invariant. This is the one that matters: it turns "it always undoes the
-  >   bug" from an argument into a check over every input, rather than the two
-  >   hand-picked examples that were there.
-  > - `repair_mojibake_leaves_any_text_with_a_non_latin1_char_alone` — pins
-  >   the first escape hatch, over an arbitrary non-Latin-1 char in an
-  >   arbitrary position.
-  > - `repair_mojibake_leaves_any_ascii_text_alone` — pins the fast path.
-  >
-  > Verified the properties have teeth by sabotaging the implementation twice:
-  > truncating with `c as u8` instead of bailing out on a non-Latin-1 char,
-  > and refusing to decode past four bytes. Both were caught, the second
-  > shrunk to the minimal input `"𞹤0"`. The sabotage-generated
-  > `proptest-regressions/` seeds were deleted rather than committed — they
-  > record artificial failures, not real ones.
-  >
-  > An idempotence property was considered and rejected as false.
-  > `repair_mojibake` peels exactly one layer of the corruption, so feeding
-  > its output back in peels another: `repair("Ã\u{83}Â©") == "Ã©"`, but
-  > `repair("Ã©") == "é"`. That isn't a bug — it's the same accepted risk
-  > KNOWN_ISSUES #10 records, since `"Ã©"` is indistinguishable by inspection
-  > from a corrupted `"é"`, and the function's contract is that its input is
-  > corrupted exactly once. The real behavior is pinned by
-  > `repair_mojibake_peels_exactly_one_layer_of_corruption`, and KNOWN_ISSUES
-  > #10 now cites it as a concrete instance of its residual risk.
 
 ---
 
@@ -961,134 +652,44 @@ Measured against the Apollo Rust handbook conventions the project uses:
   the backend-agnostic `SearchIndex` contract, which reads oddly for something
   every search backend must accept. `SearchFilters` would keep the vocabulary
   layer-neutral. Purely a naming call, no behavior implication.
-- **`LATEST_VERSION` drift risk:** ✅ **Addressed (2026-08-05)** —
-  `pub const LATEST_VERSION: i32 = 1;` had to be bumped in lockstep with
-  `MIGRATIONS`. It can be derived:
-  `pub const LATEST_VERSION: i32 = MIGRATIONS.len() as i32;` (`<[T]>::len` is
-  const), eliminating a whole class of forgot-to-bump bugs.
-
-  > **Resolution.** Derived exactly as suggested, so adding a migration is a
-  > one-place change. Both constants also picked up doc comments recording the
-  > contract: index `n` takes a database from `user_version` `n` to `n + 1`,
-  > and entries are append-only — never edit or reorder one a shipped database
-  > has already run.
-  >
-  > Verified by temporarily appending a second migration step (probe written,
-  > run, then reverted): `LATEST_VERSION` became `2` with no other edit,
-  > `migrate` applied both steps, and the resulting `user_version` was `2`.
-  > That also exercises the migration loop's multi-step path for the first
-  > time — it has only ever run with a single entry.
-  >
-  > A permanent multi-step test would need `migrate` to take the migration
-  > list as a parameter instead of reading the global; not done, as that's a
-  > wider change than this item calls for.
-- **Formatting:** ✅ **Addressed** — `cargo fmt --check` failed on three
-  test-file spots (long hand-aligned tuple rows and one import line). See I3.
 
 ---
 
-## 9. Tauri / frontend (scaffold)
+## 9. Tauri / frontend (reviewed 2026-08-06)
 
-`src-tauri/src/lib.rs` is the untouched template (`greet` command);
-`src/routes/+page.svelte` likewise. Nothing to review yet beyond flagging,
-for the wiring step:
+At the first pass this section could only leave wiring advice for a layer
+that didn't exist. The layer now exists, and every piece of that advice was
+followed, verifiably: no SQL crosses the boundary (the two queries the UI
+needed were added to `queries.rs`, with tests); the `Connection` lives in
+managed state behind a `Mutex` and the import runs in `spawn_blocking` with
+progress driven by `find_messages_root` + `count_inbox`, the `total`
+upper-bound caveat documented on both sides of the wire; `AppError` is a
+structured, internally-tagged `Serialize` enum rather than a flattened
+string, mirrored by hand in `types.ts` with narrowing and user copy kept in
+`$lib/errors`; and the snippet rule is codified ahead of need (see the A8
+status note).
 
-- Keep the app layer behind the `SearchIndex` trait / `search::run`
-  composition root — the boundary is already designed for exactly this; the
-  Tauri command should never see FTS5 SQL.
-- `rusqlite::Connection` is `!Sync`; under Tauri it will need to live in
-  managed state behind a `Mutex`, or a dedicated DB thread/channel.
-  `import_export` is long-running and must not run on the main thread — use
-  an async command with `spawn_blocking`, and `scan::count_inbox` +
-  `find_messages_root` already exist to drive a progress UI (mind A5).
-- `grepm_core::Error` will need a serializable mapping for command results,
-  since Tauri requires `Serialize` errors; the structured error enum makes
-  that straightforward — resist flattening to `String` at the boundary.
-- Snippet rendering is the one step in the wiring with a security
-  consequence: escape before substituting the match markers, or skip raw-HTML
-  insertion entirely. See A8.
+Beyond the advice, the layer has real design in it — the atomic-rename
+discipline on every state change, the index that may deliberately drift from
+the folder, delete ordered so a partial failure is retryable, and a windowed
+sidebar whose load-bearing invariants are documented and tested. Nothing in
+it rises to the engine review's C severity: there is no data-corruption path
+in the shell. What this pass found is filed above — A17 (main-thread
+commands, the one that can freeze the window), A18 (CSP), A19 (temp-file
+residue), A20 (version copy), A21 (windowing measurement), A22 (small
+notes) — plus the two gate gaps it found closed the same day, T5 (CI never
+ran this crate's tests) and I4 (`npm run verify` failing on a machine-local
+file), now in `CODE_REVIEW-addressed.md`.
 
 ---
 
 ## 10. Infrastructure
 
-- **I1 — No Cargo workspace** ✅ **Addressed (2026-08-05).** There was no root
-  `Cargo.toml`; `core/` and `src-tauri/` built independently with **two
-  separate lockfiles**, so they could silently resolve different dependency
-  versions — both depend on `serde`/`serde_json`, and `src-tauri` depends on
-  `core` by path. A root `[workspace]` manifest unifies the lockfile and
-  enables shared `[workspace.lints]` in one place.
-
-  > **Resolution.** Root `Cargo.toml` with both crates as members and
-  > `resolver = "2"`. The two lockfiles are replaced by one at the root (482
-  > packages, covering `core`'s dev-dependencies too), and `/target` moved
-  > with it.
-  >
-  > `serde`/`serde_json` are declared once in `[workspace.dependencies]` and
-  > referenced as `serde.workspace = true`, so the requirements can't drift at
-  > the manifest level either — the shared lockfile only guarantees one
-  > *resolved* version for a given requirement. Checked before the change: the
-  > two lockfiles happened to agree on both crates at the time (`serde`
-  > 1.0.229, `serde_json` 1.0.151), so the risk was live but not yet realized.
-  >
-  > `[workspace.lints]` set deliberately small, and both members opt in with
-  > `[lints] workspace = true`: `unsafe_code = "deny"` (neither crate needs
-  > any) and `clippy::redundant_clone = "warn"`. `clippy::perf` was not added
-  > — it's already warn-by-default, so naming it would imply a change that
-  > isn't one. `redundant_clone` found a real instance on its first run, a
-  > needless `Vec` clone in `fts.rs`'s paging test, now fixed.
-  >
-  > Verified `cargo check --workspace`, `cargo clippy --workspace
-  > --all-targets` (clean), and `cargo test --workspace`, including
-  > `src-tauri`. The engine-only workflow (`cd core && cargo test`) still
-  > works and is still worth keeping, since it skips the Tauri dependency
-  > tree; the README documents both. The now-orphaned per-crate `target`
-  > directories — 9 GB of dead cache — were removed.
-- **I2 — No CI** ✅ **Addressed (2026-08-05).** There was no `.github/` (or
-  equivalent). The suite is fast (~0.5 s) and clippy is already clean — this
-  project was one small workflow away from enforcing `fmt --check` +
-  `clippy -D warnings` + `cargo test`, and findings like the fmt drift (I3)
-  only stay fixed with a gate.
-
-  > **Resolution.** `.github/workflows/ci.yml`, on pushes to `main` and on
-  > pull requests, in two jobs:
-  >
-  > - **engine** — `cargo fmt --all --check` (both crates; formatting needs no
-  >   dependencies, so it's cheapest here), then `clippy -D warnings` and
-  >   `cargo test` on `grepm_core`. Deliberately `-p grepm_core` rather than
-  >   `--workspace`, so the job carrying all the tests doesn't wait on the
-  >   Tauri dependency tree.
-  > - **app** — installs the Tauri system libraries and type-checks `grepm`.
-  >   It guards a crate that's still scaffold, but it's what catches a
-  >   `grepm_core` API change breaking its one consumer.
-  >
-  > Both pass `--locked`, so a stale `Cargo.lock` fails the build instead of
-  > being updated in place — cheap to add now that I1 left a single lockfile
-  > at the root. `Swatinem/rust-cache` matters more than usual here:
-  > `rusqlite`'s `bundled` feature compiles the SQLite amalgamation from
-  > source on every cold build. All four commands were run locally before
-  > committing, so the first run starts green.
-  >
-  > Not done: branch protection. CI on `main` reports *after* the push lands,
-  > so this is a smoke alarm rather than a gate; making it block needs
-  > PR-based work plus required checks in repo settings. That's the author's
-  > call about how they want to work, not a code change.
-- **I3 — fmt drift** ✅ **Addressed (2026-08-05)** — see §8; blocked on
-  deciding intent, then trivially enforced by I2.
-
-  > **Resolution.** Decided per-site rather than globally, since the two
-  > remaining spots wanted opposite things. `tests/search.rs`'s over-long
-  > `search::run(...)` call was simply reformatted — the file's *other*
-  > `search::run` call was already in rustfmt's exploded form, so this made it
-  > consistent. `tests/ingestion.rs`'s expected-attachments literal got
-  > `#[rustfmt::skip]` and proper column alignment: it's a table of six
-  > comparable rows, and rustfmt's one-field-per-line version buries the two
-  > same-millisecond photo rows in thirty-odd lines.
-  >
-  > A `rustfmt.toml` was the wrong tool — it can't express "this one literal
-  > is a table", and the settings that would stop rustfmt exploding it would
-  > apply everywhere. `cargo fmt --all --check` is now clean and enforced by
-  > I2.
+All four findings (I1 — no Cargo workspace, I2 — no CI, I3 — fmt drift,
+I4 — `npm run verify` failing on a machine-local file) are resolved. See
+`CODE_REVIEW-addressed.md` §10. I2's resolution block keeps one open note
+that is not a code change: CI reports after a push to `main` rather than
+gating it, and making it block needs branch protection in repo settings.
 
 ---
 
@@ -1099,8 +700,8 @@ about a codebase that is above average:
 
 - **Mojibake repair** is the correct inverse transform, applied with two
   defensive escape hatches, an ASCII fast path, a pre-sized buffer, and honest
-  documentation of its one residual false-positive risk (KNOWN_ISSUES #10).
-  Now backed by property tests (T4).
+  documentation of its one residual false-positive risk (K10). Now backed by
+  property tests (T4).
 - **The message dedup key** shows real iteration: NULL-safe via `COALESCE`,
   extended by `type` and `attachment_count` for same-millisecond attachment
   batches, each extension pinned by a test explaining the collision it
@@ -1114,7 +715,7 @@ about a codebase that is above average:
   newer-schema refusal instead of silent misbehavior.
 - **Participant identity scoped per conversation** — a correctness-first call
   with the trade-off documented in three places that agree with each other
-  (code doc, KNOWN_ISSUES, README).
+  (code doc, K3, README).
 - **`Page` fields are `u32`** specifically so a negative limit dies at
   deserialization instead of becoming SQL's "no limit" — with tests.
 - **Test discipline** — descriptive names, one behavior per test, unit tests
@@ -1123,28 +724,57 @@ about a codebase that is above average:
   -chronological ordering deliberately de-confounded; the FTS5-versus-`LIKE`
   distinguishing scenarios).
 
+From the 2026-08-06 pass, in the same spirit:
+
+- **The library's failure ordering** — build under a temp name → rename →
+  list; delete files → delist — is reasoned about explicitly at each step,
+  with the recoverable state after every possible interruption named in a
+  comment, and the delete tests build a throwaway export so a bug that
+  reached for `source_path` couldn't destroy the fixture proving it exists.
+- **`AppError` as a UI contract** — a variant per case the UI branches on,
+  data intact, wire shape and user-facing copy in separate files, and the
+  hand-mirroring rule written identically at both ends of the wire.
+- **The windowed sidebar** documents its two load-bearing invariants
+  (uniform row pitch, externally bounded height), is tested for measurement
+  rather than for hardcoded row counts, and reports `aria-setsize`/
+  `aria-posinset` for the whole list rather than the mounted slice.
+- **Front-end test discipline matches the engine's** — `mockIPC` stubs that
+  throw on unexpected commands so a screen can't quietly gain an unanswered
+  call, fixtures shared between the vitest suite and the screenshot script,
+  the injection payload kept permanently in those fixtures, and
+  sample-export tests asserting shapes rather than totals so the fixture can
+  grow.
+- **Progress reporting done honestly** — `total` documented as an upper
+  bound at the type, the wrapper, the TS mirror *and* the UI (which treats
+  the promise resolving, not `done == total`, as completion), with the
+  no-going-backwards property pinned by a test.
+
 ---
 
 ## 12. Prioritized recommendations
 
-1. **Fix re-import** (C1 + C2): recompute `message_count` from `messages`
-   inside `load_conversation`, and switch `populate_fts` to FTS5's `'rebuild'`
-   command. Add the T1 invariants test, with the `rank = 1` integrity check.
-   This closes the known "re-imports are broken" issue end to end, and the
-   index is corrupt *today* — not latently.
-2. ~~**Close the NULL-key upsert hole** (C3) and correct KNOWN_ISSUES #5 and
-   #2 (D1) while in there.~~ **Done** — see C3 and D1.
-3. ~~**Add ordering tiebreakers** (A1) — one line, prevents user-visible
-   pagination glitches the moment the UI exists.~~ **Done** — see A1.
-4. ~~**Merge participant find/create/link into one API** (A2)~~ **Done** —
-   see A2; the per-conversation cache (P2) is still open.
-5. **Persist reactions** (C4) with a dedup story that tolerates reactions
+The first pass's recommendation 1 — the two one-line fixes to the definitions
+of done (T5 + I4) — was done on 2026-08-06, and both gates now mean what they
+say. Its resolution blocks are in `CODE_REVIEW-addressed.md`. What remains,
+in order:
+
+1. **Decide the command-threading pattern now** (A17): `async` commands with
+   `spawn_blocking` around the lock-holders. The freeze is an edge case
+   today; the search UI will put a per-keystroke query behind a command,
+   which is where the main-thread habit gets expensive.
+2. **Fix re-import in the engine** (C1 + C2): recompute `message_count`
+   inside `load_conversation`, switch `populate_fts` to FTS5's `'rebuild'`,
+   add the T1 invariants test with the `rank = 1` integrity check. The
+   library's one-file-per-import design means no user can trigger it today,
+   which lowers the urgency — but the index corruption is real, and the next
+   import-shaped feature inherits it.
+3. Before the UI renders a single snippet, settle the escaping story (A8) —
+   the groundwork is already in place — and pair it with the CSP and plugin
+   trim (A18), which is what stands behind the escaping if it ever slips.
+4. **Persist reactions** (C4) with a dedup story that tolerates reactions
    added to old messages, and **settle the partial-import story** (C5).
-   Both are Tauri-layer prerequisites.
-6. ~~**Set up workspace + CI** (I1, I2), run `cargo fmt` (I3)~~ **Done** —
-   switching hot-path queries to `prepare_cached` (P1) is still open.
-7. Sweep the small items (~~A3~~, ~~A4~~, ~~A5~~, ~~A6~~, ~~A9~~–~~A16~~,
-   ~~T3~~, ~~T4~~ (all done), A7, D2, D3, and the `Scan { path, source }`
-   error-context nit) opportunistically.
-8. Before the UI renders a single snippet, settle the escaping story (A8).
-   It's the one item here that turns into a vulnerability rather than a bug.
+5. **Performance headroom** (§6): `prepare_cached` on the hot-path queries
+   (P1) and the per-conversation participant cache (P2) —
+   `find_or_create_participant` is the single place to add it.
+6. Sweep the remaining small items opportunistically: A7, A19–A22, D2, D3,
+   and the `Scan { path, source }` error-context nit.

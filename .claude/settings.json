@@ -1,0 +1,48 @@
+{
+	"$schema": "https://json.schemastore.org/claude-code-settings.json",
+	"permissions": {
+		"allow": [
+			"Bash(npm run check:*)",
+			"Bash(npm run lint:*)",
+			"Bash(npm run format:*)",
+			"Bash(npm run test:*)",
+			"Bash(npm run verify:*)",
+			"Bash(npm run build:*)",
+			"Bash(npm run shoot:*)",
+			"Bash(npm ci)",
+			"Bash(npx svelte-check:*)",
+			"Bash(npx vitest:*)",
+			"Bash(npx prettier:*)",
+			"Bash(npx eslint:*)",
+			"Bash(npx playwright:*)",
+			"Bash(node scripts/shoot.mjs)",
+			"Bash(cargo fmt:*)",
+			"Bash(cargo clippy:*)",
+			"Bash(cargo test:*)",
+			"Bash(cargo check:*)",
+			"Bash(cargo build:*)",
+			"Bash(cargo doc:*)",
+			"Bash(cargo tree:*)",
+			"Bash(cargo metadata:*)",
+			"Bash(rustfmt:*)",
+			"Bash(scripts/verify-rust.sh)",
+			"Bash(./scripts/verify-rust.sh)",
+			"Bash(scripts/check-comment-width.sh:*)",
+			"Bash(./scripts/check-comment-width.sh:*)",
+			"Read(./.screenshots/**)"
+		]
+	},
+	"hooks": {
+		"PostToolUse": [
+			{
+				"matcher": "Edit|Write",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "$CLAUDE_PROJECT_DIR/.claude/hooks/rust-post-edit.sh"
+					}
+				]
+			}
+		]
+	}
+}

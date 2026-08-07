@@ -1,0 +1,37 @@
+{
+  "participants": [
+    {
+      "name": "Yusuf Eriksen"
+    },
+    {
+      "name": "Vlad Mishel"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Yusuf Eriksen",
+      "timestamp_ms": 1639263650220,
+      "content": "rescheduling to next week if that's ok",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Yusuf Eriksen",
+      "timestamp_ms": 1639261073788,
+      "content": "lmaooo that's wild",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Yusuf Eriksen",
+      "timestamp_ms": 1639256764030,
+      "content": "no worries at all",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Yusuf Eriksen",
+  "is_still_participant": true,
+  "thread_path": "inbox/yusuferiksen_5284008830607626",
+  "magic_words": []
+}
