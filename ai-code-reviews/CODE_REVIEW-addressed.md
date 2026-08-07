@@ -43,6 +43,22 @@ it — is documented in `CODE_REVIEW.md` §1.
 | I2 | — | infra | No CI | 2026-08-05 |
 | I3 | — | infra | fmt drift | 2026-08-05 |
 | — | — | style | `LATEST_VERSION` drift risk (§8) | 2026-08-05 |
+| K1 | — | ingest/db | `message_count` was not accumulated across a conversation's files | — |
+| K3 | — | db | Participants were deduped globally by exact name match | — |
+| K4 | — | ingest | Participants appearing only in a later file were never linked | — |
+| K5 | — | db | Conversation metadata was unconditionally overwritten on conflict | — |
+| K7 | — | ingest/fts | `messages_fts` was never populated during import | — |
+
+The `K` findings came from `core/KNOWN_ISSUES.md`, which was folded into these
+documents and removed; they keep their original entry numbers, so an older
+citation of "KNOWN_ISSUES #3" resolves to K3. That file recorded neither
+severities nor fix dates, hence the dashes. `CODE_REVIEW.md` carries the full
+map, including the three entries that were already covered by C4, A9, and
+C1 + C2 and so were not duplicated.
+
+Resolution blocks below still name `KNOWN_ISSUES.md` where the work at the
+time included editing it. Those are left as written — they record what was
+done, not where to look now.
 
 ---
 
@@ -109,6 +125,104 @@ the pipeline admitted inputs the storage layer silently split.
   with a matching expression conflict target.
 
 Either way, correct KNOWN_ISSUES #5.
+
+### K1 — `message_count` was not accumulated across a conversation's files — **Fixed**
+
+> **Resolution.** `load_conversation` (`core/src/ingest/loader.rs`) loops over
+> every file in `conversation_dir.message_files` and calls
+> `upsert_conversation` (`core/src/db/queries.rs`) once per file, so each
+> file's count is added onto the running total via
+> `message_count = message_count + excluded.message_count`. Files are matched
+> to the same conversation row by the `(title, thread_path)` unique key (see
+> K5) rather than the removed `raw_name` folder name.
+
+`conversations.message_count` did not accumulate across the files a
+conversation is split into.
+
+Note what the fix does *not* provide: an idempotence story. The accumulation
+is right within a single import and inflates across repeated ones — that is
+C1, still open.
+
+### K3 — Participants were deduped globally by exact name match — **Fixed**
+
+> **Resolution.** `participants.name` is no longer globally `UNIQUE`
+> (`core/src/db/schema.rs`). `find_or_create_participant`
+> (`core/src/db/queries.rs`) finds-or-creates a participant scoped to a single
+> `conversation_id`: it looks for an existing participant with that name
+> already linked to the conversation via `conversation_participants`, and only
+> inserts a new row if none is found — linking it in the same call. Two
+> different real people who happen to share a display name in unrelated
+> conversations ("John Smith") now get separate `participants` rows instead of
+> being merged.
+>
+> Creating and linking are one operation on purpose: the link is *how* a
+> participant is found, so an unlinked participant row could never be found
+> again. That matters for a message sender who, for whatever reason, isn't in
+> the file's `participants` list — without the link they would get a fresh
+> `participants` row for every single message they sent. Folding the link into
+> the lookup means no caller can get that pairing wrong. A2 is the finding
+> that made that shape mandatory rather than conventional.
+
+**The trade-off, accepted deliberately.** Someone who is genuinely the same
+person across several conversations now gets a separate `participants` row in
+each, so there is no built-in way to query "all messages from Bob" across
+conversations without additional reconciliation logic. This was already
+unreliable under global name-based dedup — the export carries no stable
+per-person id, only a display name — so it is a deliberate trade for
+correctness within a conversation.
+
+Two participants sharing the exact same name *within one* conversation remain
+indistinguishable. That is a limitation of the source data, not something this
+fix, or any fix, can address.
+
+### K4 — Participants appearing only in a later file were never linked — **Fixed**
+
+> **Resolution.** `load_conversation` (`core/src/ingest/loader.rs`) inserts and
+> links every file's `participants` list, not just the first file's, so
+> someone who appears only in a later page's list — and never sends a message
+> — is still linked via `conversation_participants`.
+
+For a conversation split across several `message_N.json` files, only the first
+file's `participants` list was persisted.
+
+### K5 — Conversation metadata was unconditionally overwritten on conflict — **Fixed**
+
+> **Resolution.** `conversations` no longer has a `raw_name` column; a
+> conversation is identified by `UNIQUE (title, thread_path)`
+> (`core/src/db/schema.rs`), and `upsert_conversation`
+> (`core/src/db/queries.rs`) conflicts on that pair. Because `title` and
+> `thread_path` are the conflict *key* rather than fields the `DO UPDATE`
+> touches, on conflict they already equal what is stored — there is no
+> overwrite to blank them out. Only `is_still_participant` and `message_count`
+> are updated on conflict.
+>
+> Both fields are also required rather than optional, which closes the worse
+> version of the same hole. C3 is the finding that established that, and
+> records why NULLs made it worse.
+
+**The residual caveat.** Two files for the same conversation must agree on
+`title` *and* `thread_path` exactly to be recognised as the same conversation.
+If a page ever reported a different `title` for the same thread they would
+become two conversations — which, now that every file goes through
+`upsert_conversation` (K1), surfaces as a duplicate `conversations` row with a
+split `message_count`. Not observed in practice, but worth knowing if it ever
+comes up.
+
+### K7 — `messages_fts` was never populated during import — **Fixed**
+
+> **Resolution.** `populate_fts` (`core/src/db/schema.rs`, renamed from
+> `populate_messages_fts`) is called at the end of `ingest::import_export`
+> (`core/src/ingest/mod.rs`), after every conversation has been loaded, so a
+> fresh import leaves `messages_fts` fully indexed. The table also tokenizes
+> with `unicode61 remove_diacritics 2`, so a search for "cafe" matches content
+> containing "café".
+
+A completed import left the full-text index empty, so search over a
+freshly-imported database returned nothing.
+
+The fix is correct for one import into a fresh database and no further: the
+plain append it uses is exactly what C2 shows to corrupt the index on a second
+import.
 
 ---
 

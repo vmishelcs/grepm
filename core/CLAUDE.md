@@ -5,8 +5,9 @@ Rust, no UI dependencies, and the most heavily tested part of the project.
 Read this before editing anything under `core/`.
 
 Most of what's here is load-bearing in a quiet way — a rule whose violation
-produces wrong data rather than a failed build. The `core/KNOWN_ISSUES.md`
-entries cited by number are the long-form versions.
+produces wrong data rather than a failed build. The review findings cited by
+ID are the long-form versions — open ones in `ai-code-reviews/CODE_REVIEW.md`,
+resolved ones in `CODE_REVIEW-addressed.md`.
 
 ## 1. Migrations are append-only
 
@@ -46,7 +47,7 @@ means "this row matches nothing, not even its own duplicate".
 - `conversations` is keyed `UNIQUE (title, thread_path)` with both columns
   `NOT NULL`, and `RawConversationFile` takes both as `String` rather than
   `Option<String>` — so a file missing either is refused at parse time, by
-  name, instead of quietly becoming a second conversation. (#5)
+  name, instead of quietly becoming a second conversation. (C3, K5)
 
 If you add a column to a unique key, decide what its NULL means before you
 add it.
@@ -90,7 +91,7 @@ Creating and linking are one operation because **the link is how a
 participant is found.** An unlinked `participants` row can never be found
 again, so a caller who created without linking would mint a fresh row for
 every message that sender sent. There is no `create_participant` to call by
-mistake, and there shouldn't be. (#3)
+mistake, and there shouldn't be. (A2, K3)
 
 The cost, accepted knowingly: the same real person in five conversations gets
 five `participants` rows, so "everything from Bob, everywhere" needs
@@ -135,7 +136,7 @@ It's a plain `INSERT ... SELECT` over every message with content, with no
 conflict handling, run once at the end of `import_export`. Calling it twice
 re-inserts every rowid. The app layer avoids the problem structurally by
 giving each import its own file; don't add a code path that imports into a
-populated database without fixing this first. (#9)
+populated database without fixing this first. (C1, C2)
 
 ## 9. `scan` counts and walks differently, and that's the `Progress` gap
 
@@ -167,7 +168,7 @@ It is defensive — a `char` outside Latin-1, or bytes that aren't valid UTF-8
 once reinterpreted, leave the text alone — but it cannot distinguish
 already-correct Latin-1 text from corrupted text. `"Ã©"` becomes `"é"`, and
 that is pinned by a test rather than treated as a bug. Don't reuse this
-function against a cleaner data source. (#10)
+function against a cleaner data source. (K10)
 
 ## 11. Tests
 
@@ -203,5 +204,5 @@ house habit: sabotage the fix, watch the new test fail, then put it back.
   is repeated in the root `CLAUDE.md` for a reason.
 - **No `unsafe`** — denied at the workspace level.
 - Reactions parse into `RawReaction` and are then dropped; the `reactions`
-  table exists but nothing writes it. That's a known gap (#6), not an
+  table exists but nothing writes it. That's a known gap (C4), not an
   oversight to fix in passing.

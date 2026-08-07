@@ -40,8 +40,8 @@ opening every file at launch just to read a name.
 
 Ids are opaque, so a user's chosen name never becomes a filename and never has
 to satisfy a filesystem's rules. One import per file, which also sidesteps
-`KNOWN_ISSUES.md` §9 (`populate_fts` isn't idempotent, so re-importing into an
-existing database is unsafe).
+review findings C1/C2 (`populate_fts` isn't idempotent, so re-importing into
+an existing database inflates `message_count` and corrupts the FTS index).
 
 Deleting an import removes its database, the `-wal`/`-shm` sidecars WAL mode
 leaves beside it, and its index entry — and closes the connection first if that
@@ -139,9 +139,11 @@ actually looks like, since a Tauri window can't be observed any other way.
 
 ## Further reading
 
-- `core/KNOWN_ISSUES.md` — tracked correctness trade-offs and future work.
-- `ai-code-reviews/CODE_REVIEW.md` — findings, open and closed, by ID.
-  Findings are cited by ID in commits and comments; keep the IDs stable.
+- `ai-code-reviews/CODE_REVIEW.md` — every open finding, and the tracked
+  correctness trade-offs. `CODE_REVIEW-addressed.md` is the resolved half,
+  with a resolution block on each. Findings are cited by ID in commits and
+  comments; keep the IDs stable. `K`-prefixed ones came from the former
+  `core/KNOWN_ISSUES.md` and kept its numbering.
 - `AGENTS.md` — the Svelte MCP server's tools (documentation lookup and a
   compiler-backed autofixer). Loaded automatically via `.claude/CLAUDE.md`.
 - `.claude/hooks/rust-post-edit.sh` — runs after any edit to a `.rs` file in

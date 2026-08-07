@@ -65,7 +65,7 @@ fn imports_multiple_conversations_including_a_group_chat() {
     assert_eq!(message_count, 5);
 
     // Alice and Bob are each in both conversations, but participants are
-    // scoped per conversation (see KNOWN_ISSUES.md #3), so that's 2 rows
+    // scoped per conversation (see review finding K3), so that's 2 rows
     // apiece; Carol is only in the group chat, so 1 row for her.
     let participant_count: i64 = conn
         .query_row("SELECT count(*) FROM participants", [], |row| row.get(0))

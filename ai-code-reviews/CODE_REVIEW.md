@@ -65,10 +65,26 @@ large exports.
 | A7 | Low | search | Participant filter is case-sensitive; empty query silently returns 0 |
 | D2 | Low | docs | README drift: trait signature, test count, "(re)builds" wording |
 | D3 | Low | code | `db/models.rs` is currently dead code |
+| K10 | Low (accepted) | ingest | `repair_mojibake` assumes exports never contain correct non-ASCII text |
 | P1–P4 | — | perf | Statement caching, participant lookup caching, count-query duplication, parse-inside-transaction |
 | T1–T2 | — | tests | Missing re-import assertions, import-failure recovery |
 
-Twenty-two further findings are resolved — see `CODE_REVIEW-addressed.md`.
+Twenty-seven further findings are resolved — see `CODE_REVIEW-addressed.md`.
+
+**Provenance of the `K` findings.** `core/KNOWN_ISSUES.md` was folded into
+these two documents and removed. Its entries keep their original numbers under
+a `K` prefix, so an older citation of "KNOWN_ISSUES #3" resolves to K3. Three
+of them were already covered here and were not duplicated:
+
+| Was | Now |
+|---|---|
+| #1, #4, #5, #7 | K1, K4, K5, K7 — resolved, in `CODE_REVIEW-addressed.md` |
+| #3 | K3 (the trade-off) — resolved; A2 covers the API shape that enforces it |
+| #2 | retired when the entry was deleted (D1). The number is not reused |
+| #6 — reactions dropped | **C4**, which also settles the dedup and actor-resolution questions #6 left open |
+| #8 — migration rollback | **A9**, resolved 2026-07-24. The KNOWN_ISSUES entry had gone stale and still described the pre-fix behaviour |
+| #9 — re-import | **C1 + C2**, which answer what #9 left open: FTS5 does not reject the repeated rowid, and the index *is* corrupt today — verified |
+| #10 — mojibake residual risk | K10 below, open and accepted |
 
 ---
 
@@ -222,6 +238,31 @@ pairs naturally with the structured error type (A10) — the crate can already
 name the offending file. If fail-fast stays, at least run `populate_fts` on
 the error path so already-committed conversations remain searchable; with the
 C2 `rebuild` fix that becomes safe to do unconditionally.
+
+### K10 — `repair_mojibake` assumes exports never contain legitimately-correct non-ASCII text — **Low (accepted)**
+
+*Folded in from `core/KNOWN_ISSUES.md` #10, which recorded this as an accepted
+risk rather than a bug to fix.*
+
+`repair_mojibake` (`core/src/ingest/parse.rs`) is applied unconditionally to
+every non-ASCII string, on the stated assumption that real Messenger exports
+are always mojibake-corrupted and never already-correct UTF-8. Its fallback —
+bail out on an out-of-Latin-1 `char`, or on bytes that aren't valid UTF-8 once
+reinterpreted — catches most accidental misfires. But a string that is already
+correct, entirely within the Latin-1 range, and happens to reinterpret as
+valid UTF-8 is silently mis-repaired. Low practical risk given the source
+data; worth remembering if this logic is ever reused against a different or
+cleaner data source.
+
+Half of the concern is now a checked invariant rather than an argument (T4).
+`repair_mojibake_undoes_the_corruption_for_any_text` asserts that corrupting
+*any* string and repairing it returns the original, so the "it always undoes
+the bug" half holds for every input, not just the hand-picked examples. The
+residual risk above is unchanged, and
+`repair_mojibake_peels_exactly_one_layer_of_corruption` pins a concrete
+instance of it: `"Ã©"` is already-correct Latin-1 text that this function will
+happily "repair" into `"é"`, because nothing distinguishes it from a corrupted
+`"é"`. That also means the function is deliberately not idempotent.
 
 ---
 
@@ -454,8 +495,8 @@ about a codebase that is above average:
 
 - **Mojibake repair** is the correct inverse transform, applied with two
   defensive escape hatches, an ASCII fast path, a pre-sized buffer, and honest
-  documentation of its one residual false-positive risk (KNOWN_ISSUES #10).
-  Now backed by property tests (T4).
+  documentation of its one residual false-positive risk (K10). Now backed by
+  property tests (T4).
 - **The message dedup key** shows real iteration: NULL-safe via `COALESCE`,
   extended by `type` and `attachment_count` for same-millisecond attachment
   batches, each extension pinned by a test explaining the collision it
@@ -469,7 +510,7 @@ about a codebase that is above average:
   newer-schema refusal instead of silent misbehavior.
 - **Participant identity scoped per conversation** — a correctness-first call
   with the trade-off documented in three places that agree with each other
-  (code doc, KNOWN_ISSUES, README).
+  (code doc, K3, README).
 - **`Page` fields are `u32`** specifically so a negative limit dies at
   deserialization instead of becoming SQL's "no limit" — with tests.
 - **Test discipline** — descriptive names, one behavior per test, unit tests

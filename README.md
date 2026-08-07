@@ -18,8 +18,8 @@ Everything runs locally. Your messages never leave your machine.
 > SvelteKit) is still the starter scaffold and is not yet wired to the
 > engine, though its toolchain — typecheck, lint, browser-mode tests, and a
 > screenshot script — is in place. See
-> [`ai-code-reviews/CODE_REVIEW.md`](ai-code-reviews/CODE_REVIEW.md) and
-> [`core/KNOWN_ISSUES.md`](core/KNOWN_ISSUES.md) for the current state.
+> [`ai-code-reviews/CODE_REVIEW.md`](ai-code-reviews/CODE_REVIEW.md) for the
+> current state.
 
 ---
 
@@ -151,8 +151,9 @@ conversation it touched. Rather than dedupe participants globally by name
 to a single conversation: the same display name in two different
 conversations becomes two rows. This trades cross-conversation "all
 messages from Bob" convenience for **not silently merging different
-people** — a correctness-first call. See `core/KNOWN_ISSUES.md` #3 for the
-full trade-off.
+people** — a correctness-first call. See finding K3 in
+[`ai-code-reviews/CODE_REVIEW-addressed.md`](ai-code-reviews/CODE_REVIEW-addressed.md)
+for the full trade-off.
 
 ### Mojibake repair
 
@@ -259,11 +260,13 @@ npm run verify
 
 ## Further reading
 
-- [`ai-code-reviews/CODE_REVIEW.md`](ai-code-reviews/CODE_REVIEW.md) — a full
-  review of the current code, with findings and suggestions.
-- [`core/KNOWN_ISSUES.md`](core/KNOWN_ISSUES.md) — tracked correctness
-  trade-offs and future work, with most of the early ingestion issues now
-  resolved.
+- [`ai-code-reviews/CODE_REVIEW.md`](ai-code-reviews/CODE_REVIEW.md) — the
+  open findings from a full review of the code, including the tracked
+  correctness trade-offs.
+- [`ai-code-reviews/CODE_REVIEW-addressed.md`](ai-code-reviews/CODE_REVIEW-addressed.md)
+  — the resolved half, each finding carrying a block on what actually
+  changed. The former `core/KNOWN_ISSUES.md` was folded into both files; its
+  entries kept their numbers under a `K` prefix.
 - [`CLAUDE.md`](CLAUDE.md) and [`src/CLAUDE.md`](src/CLAUDE.md) — the
   conventions a contributor (human or agent) is expected to follow. The
   front-end one is worth reading before touching `src/`; it covers the

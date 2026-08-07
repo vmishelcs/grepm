@@ -630,7 +630,7 @@ mod tests {
         // export bug, so a doubly-corrupted string needs two passes and a
         // once-repaired string would be "repaired" again if fed back in.
         //
-        // That's the same accepted risk as KNOWN_ISSUES #10 — "Ã©" is
+        // That's the same accepted risk as review finding K10 — "Ã©" is
         // indistinguishable from corrupted "é" by inspection, and this
         // function's contract is that its input is always corrupted exactly
         // once. Pinned here so a future refactor toward idempotence has to
